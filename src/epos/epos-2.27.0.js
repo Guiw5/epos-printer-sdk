@@ -8696,6 +8696,7 @@
     };
     io.transports.push("xhr-polling")
   })("undefined" != typeof io ? io.Transport : module.exports, "undefined" != typeof io ? io : module.parent.exports, this);
+  
   (function(exports, io, global) {
     var indicator = global.document && "MozAppearance" in global.document.documentElement.style;
     exports["jsonp-polling"] = JSONPPolling;
@@ -8816,10 +8817,13 @@
     };
     io.transports.push("jsonp-polling")
   })("undefined" != typeof io ? io.Transport : module.exports, "undefined" != typeof io ? io : module.parent.exports, this);
+  
   var JSON;
   if (!JSON) {
     JSON = {}
-  }(function() {
+  }
+  
+  (function() {
     function f(n) {
       return n < 10 ? "0" + n : n
     }
@@ -8970,6 +8974,7 @@
       }
     }
   }());
+  
   var base64 = (function(undefined) {
     var t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
       u = {},
