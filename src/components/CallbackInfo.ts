@@ -1,17 +1,19 @@
-
 // CallbackInfo to manage callback storage
 export class CallbackInfo {
-  private callbackInfoList: Record<number, Function> = {};
+  private map: Map<number, Function>;
 
-  addCallback(callback: Function, sequence: number): void {
-      this.callbackInfoList[sequence] = callback;
+  constructor() {
+    this.map = new Map();
+  }
+  addCallback(callback: Function, sq: number): void {
+      this.map.set(sq, callback);
   }
 
-  removeCallback(sequence: number): void {
-      delete this.callbackInfoList[sequence];
+  removeCallback(sq: number): void {
+    this.map.delete(sq);
   }
 
-  getCallback(sequence: number): Function | null {
-      return this.callbackInfoList[sequence] || null;
+  getCallback(sq: number): Function | null {
+    return this.map.get(sq) ?? null;
   }
 }

@@ -7,6 +7,13 @@ settings:
 importers:
 
   .:
+    dependencies:
+      crypto-js:
+        specifier: ^4.2.0
+        version: 4.2.0
+      socket.io-client:
+        specifier: 0.8.7
+        version: 0.8.7
     devDependencies:
       '@swc/core':
         specifier: ^1.7.26
@@ -14,6 +21,9 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.13
         version: 0.5.13
+      '@types/crypto-js':
+        specifier: ^4.2.2
+        version: 4.2.2
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.6.0
         version: 8.6.0(@typescript-eslint/parser@8.6.0(eslint@9.11.0)(typescript@5.6.2))(eslint@9.11.0)(typescript@5.6.2)
@@ -402,6 +412,9 @@ packages:
   '@swc/types@0.1.12':
     resolution: {integrity: sha512-wBJA+SdtkbFhHjTMYH+dEH1y4VpfGdAc2Kw/LK09i9bXd/K6j6PkDcFCEzb6iVfZMkPRrl/q0e3toqTAJdkIVA==}
 
+  '@types/crypto-js@4.2.2':
+    resolution: {integrity: sha512-sDOLlVbHhXpAUAL0YHDUUwDZf3iN4Bwi4W6a0W0b+QcAezUbRtH4FVb+9J4h+XFPW7l/gQ9F8qC7P+Ec4k8QVQ==}
+
   '@types/estree@1.0.5':
     resolution: {integrity: sha512-/kYRxGDLWzHOB7q+wtSUQlFrtcdUccpfy+X+9iMBpHK8QLLhx2wIPYuS5DYtR9Wa/YlZAbIovy7qVdB1Aq6Lyw==}
 
@@ -579,6 +592,9 @@ packages:
   cross-spawn@7.0.3:
     resolution: {integrity: sha512-iRDPJKUPVEND7dHPO8rkbOnPpyDygcDFtWjpeWNCgy8WP2rXcxXL8TskReQl6OrB2G7+UJrags1q15Fudc7G6w==}
     engines: {node: '>= 8'}
+
+  crypto-js@4.2.0:
+    resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
 
   data-view-buffer@1.0.1:
     resolution: {integrity: sha512-0lht7OugA5x3iJLOWFhWK/5ehONdprk0ISXqVFn/NFrDu+cuc8iADFrGQz5BnRK7LLU3JmkbXSxaqX+/mXYtUA==}
@@ -1206,6 +1222,10 @@ packages:
     resolution: {integrity: sha512-fDW/EZ6Q9RiO8eFG8Hj+7u/oW+XrPTIChwCOM2+th2A6OblDtYYIpve9m+KvI9Z4C9qSEXlaGR6bTEYHReuglA==}
     engines: {node: '>= 0.4'}
 
+  socket.io-client@0.8.7:
+    resolution: {integrity: sha512-DEEcHyrcqSdLwPIVJgTPXiH9werksWm0mBL7HpNM7ijQKN6+wRQdJ+D7CjtRHtiSAg2zPHQx5/15agYIZwy44w==}
+    engines: {node: '>= 0.4.0'}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -1304,6 +1324,10 @@ packages:
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
 
+  uglify-js@1.0.6:
+    resolution: {integrity: sha512-XhSNAouwlyJ0q6sjqC8OElOjAjZ5cUCN1rzXyvUYTNA0qwPrTBf0H3KsZRxhppBsEOfpbzE9TKWvxwjdsNy/Rg==}
+    hasBin: true
+
   unbox-primitive@1.0.2:
     resolution: {integrity: sha512-61pPlCD9h51VoreyJ0BReideM3MDKMKnh6+V9L08331ipq6Q8OFXZYiqP6n/tbHx4s5I9uRhcye6BrbkizkBDw==}
 
@@ -1362,6 +1386,10 @@ packages:
       terser:
         optional: true
 
+  websocket-client@1.0.0:
+    resolution: {integrity: sha512-dCB42rbFapp0xLQ0LFiyUiarCndaO+Dz0AvcJOFFU1j2cUmEKW9CLsGjmWaof4ueFPG+YxJT4L8Mldr+8GJ/yg==}
+    engines: {node: '>=0.1.98'}
+
   which-boxed-primitive@1.0.2:
     resolution: {integrity: sha512-bwZdv0AKLpplFY2KZRX6TvyuN7ojjr7lwkg6ml0roIy9YeuSr7JS372qlNW18UQYzgYK9ziGcerWqZOmEn9VNg==}
 
@@ -1377,6 +1405,9 @@ packages:
   word-wrap@1.2.5:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
+
+  xmlhttprequest@1.2.2:
+    resolution: {integrity: sha512-TRragYedEfx5AYsKwL82dI3+V1SdIgVnLGzxD6X3t4xhX5n7jT++i2ozKPc4iB+/SlS/4XZ/HtYlxdxP9g8UZg==}
 
   yaml@2.5.1:
     resolution: {integrity: sha512-bLQOjaX/ADgQ20isPJRvF0iRUHIxVhYvr53Of7wGcWlO2jvtUlH5m87DsmulFVxRpNLOnI4tB6p/oh8D7kpn9Q==}
@@ -1648,6 +1679,8 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
+  '@types/crypto-js@4.2.2': {}
+
   '@types/estree@1.0.5': {}
 
   '@types/hast@3.0.4':
@@ -1869,6 +1902,8 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  crypto-js@4.2.0: {}
 
   data-view-buffer@1.0.1:
     dependencies:
@@ -2637,6 +2672,12 @@ snapshots:
       get-intrinsic: 1.2.4
       object-inspect: 1.13.2
 
+  socket.io-client@0.8.7:
+    dependencies:
+      uglify-js: 1.0.6
+      websocket-client: 1.0.0
+      xmlhttprequest: 1.2.2
+
   source-map-js@1.2.1: {}
 
   space-separated-tokens@2.0.2: {}
@@ -2749,6 +2790,8 @@ snapshots:
 
   uc.micro@2.1.0: {}
 
+  uglify-js@1.0.6: {}
+
   unbox-primitive@1.0.2:
     dependencies:
       call-bind: 1.0.7
@@ -2801,6 +2844,8 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
+  websocket-client@1.0.0: {}
+
   which-boxed-primitive@1.0.2:
     dependencies:
       is-bigint: 1.0.4
@@ -2822,6 +2867,8 @@ snapshots:
       isexe: 2.0.0
 
   word-wrap@1.2.5: {}
+
+  xmlhttprequest@1.2.2: {}
 
   yaml@2.5.1: {}
 

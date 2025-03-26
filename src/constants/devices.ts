@@ -1,0 +1,54 @@
+export const TYPES = {
+  TYPE_SCANNER: "type_scanner",
+  TYPE_KEYBOARD: "type_keyboard",
+  TYPE_POSKEYBOARD: "type_poskeyboard",
+  TYPE_MSR: "type_msr",
+  TYPE_CAT: "type_cat",
+  TYPE_CASH_CHANGER: "type_cash_changer",
+  TYPE_PRINTER: "type_printer",
+  TYPE_DISPLAY: "type_display",
+  TYPE_SIMPLE_SERIAL: "type_simple_serial",
+  TYPE_HYBRID_PRINTER: "type_hybrid_printer",
+  TYPE_HYBRID_PRINTER2: "type_hybrid_printer2",
+  TYPE_DT: "type_dt",
+  TYPE_OTHER_PERIPHERAL: "type_other_peripheral",
+  TYPE_GFE: "type_storage",
+}
+
+export const NAMES = {
+  [TYPES.TYPE_SCANNER]: 'Scanner',
+  [TYPES.TYPE_KEYBOARD]: 'Keyboard',
+  [TYPES.TYPE_POSKEYBOARD]: 'POSKeyboard',
+  [TYPES.TYPE_MSR]: 'MSR',
+  [TYPES.TYPE_CAT]: 'CAT',
+  [TYPES.TYPE_CASH_CHANGER]: 'CashChanger',
+  [TYPES.TYPE_PRINTER]: 'Printer',
+  [TYPES.TYPE_DT]: 'DeviceTerminal',
+  [TYPES.TYPE_DISPLAY]: 'Display',
+  [TYPES.TYPE_SIMPLE_SERIAL]: 'SimpleSerial',
+  [TYPES.TYPE_HYBRID_PRINTER]: 'HybridPrinter',
+  [TYPES.TYPE_HYBRID_PRINTER2]: 'HybridPrinter2',
+  [TYPES.TYPE_OTHER_PERIPHERAL]: 'OtherPeripheral',
+  [TYPES.TYPE_GFE]: 'GermanyFiscalElement',
+};
+
+export const ERRORS = {
+  ERROR_DEVICE_IN_USE: "DEVICE_IN_USE",
+  ERROR_DEVICE_OPEN: "DEVICE_OPEN_ERROR",
+  ERROR_DEVICE_CLOSE: "DEVICE_CLOSE_ERROR",
+  ERROR_DEVICE_NOT_OPEN: "DEVICE_NOT_OPEN",
+  ERROR_DEVICE_NOT_FOUND: "DEVICE_NOT_FOUND",
+  ERROR_DEVICE_BUSY: "ERROR_DEVICE_BUSY",
+  ERROR_DEVICE_NOT_RESPONDING: "ERROR_DEVICE_NOT_RESPONDING",
+  ERROR_DEVICE_NOT_CONNECTED: "ERROR_DEVICE_NOT_CONNECTED",
+  ERROR_DEVICE_NOT_READY: "ERROR_DEVICE_NOT_READY",
+  ERROR_DEVICE_NOT_SUPPORTED: "ERROR_DEVICE_NOT_SUPPORTED",
+  ERROR_DEVICE_NOT_CONFIGURED: "DEVICE_NOT_CONFIGURED",
+}
+
+export const RESULT_OK = "OK";
+export const IFPORT_EPOSDEVICE = 8008;
+export const IFPORT_EPOSDEVICE_S = 8043;
+export const CONNECT_TIMEOUT = 15000;
+export const RECONNECT_TIMEOUT = 3000;
+export const MAX_RECONNECT_RETRY = 5;

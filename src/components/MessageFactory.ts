@@ -1,5 +1,7 @@
-import { ePosDeviceMessage } from './ePosDeviceMessage';
+import { ePosDeviceMessage, Data, MsgData } from './ePosDeviceMessage';
 import { ePosCrypto } from './ePosCrypto'; // Suponemos que existe un módulo de criptografía
+import { bigInt2str } from '../crypto/bigint';
+import { REQUEST } from '../constants/eposmessage';
 
 let sequence: number = 0;
 const PUBKEY_TEST_TEXT = 'hello';
@@ -17,46 +19,45 @@ export const MessageFactory = {
   parseRequestMessage(message: any[]): ePosDeviceMessage | null {
     const eposmsg = new ePosDeviceMessage();
     eposmsg.request = message[0];
-
     switch (eposmsg.request) {
-      case eposmsg.REQUEST.CONNECT:
+      case REQUEST.CONNECT:
         eposmsg.data = message[1];
         break;
-      case eposmsg.REQUEST.PUBKEY:
-      case eposmsg.REQUEST.ADMININFO:
-      case eposmsg.REQUEST.RECONNECT:
-      case eposmsg.REQUEST.DISCONNECT:
+      case REQUEST.PUBKEY:
+      case REQUEST.ADMININFO:
+      case REQUEST.RECONNECT:
+      case REQUEST.DISCONNECT:
         eposmsg.code = message[1];
         eposmsg.data = message[2];
         break;
-      case eposmsg.REQUEST.OPENDEVICE:
-      case eposmsg.REQUEST.CLOSEDEVICE:
+      case REQUEST.OPENDEVICE:
+      case REQUEST.CLOSEDEVICE:
         eposmsg.deviceId = message[1];
         eposmsg.code = message[2];
         eposmsg.data = message[3];
         eposmsg.data_id = message[4];
         break;
-      case eposmsg.REQUEST.DEVICEDATA:
+      case REQUEST.DEVICEDATA:
         eposmsg.sequence = message[1];
         eposmsg.deviceId = message[2];
         eposmsg.data = message[3];
         eposmsg.data_id = message[4];
         break;
-      case eposmsg.REQUEST.SERVICEDATA:
+      case REQUEST.SERVICEDATA:
         eposmsg.sequence = message[1];
         eposmsg.serviceId = message[2];
         eposmsg.isCrypto = message[3];
         eposmsg.data = message[4];
         eposmsg.data_id = message[5];
         break;
-      case eposmsg.REQUEST.OPENCOMMBOX:
-      case eposmsg.REQUEST.CLOSECOMMBOX:
-      case eposmsg.REQUEST.COMMDATA:
+      case REQUEST.OPENCOMMBOX:
+      case REQUEST.CLOSECOMMBOX:
+      case REQUEST.COMMDATA:
         eposmsg.sequence = message[1];
         eposmsg.data = message[2];
         eposmsg.data_id = message[3];
         break;
-      case eposmsg.REQUEST.ERROR:
+      case REQUEST.ERROR:
         eposmsg.sequence = message[1];
         eposmsg.deviceId = message[2];
         eposmsg.code = message[3];
@@ -69,13 +70,13 @@ export const MessageFactory = {
     return eposmsg;
   },
 
-  getPubkeyMessage(prime: any, key: any): ePosDeviceMessage {
+  getPubkeyMessage(prime: string, key: string): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.PUBKEY;
+    eposmsg.request = REQUEST.PUBKEY;
 
     cipher.genClientKeys(prime, key);
     const testData = cipher.bfEncrypt(PUBKEY_TEST_TEXT);
-    let pubkey = cipher.pubkey_c.toString(16);
+    let pubkey = bigInt2str(cipher.getPubkey(), 16);
 
     while (pubkey.length < 192) {
       pubkey = '0' + pubkey;
@@ -83,35 +84,35 @@ export const MessageFactory = {
 
     eposmsg.data = {
       key: pubkey,
-      testData: testData,
-    };
+      testData,
+    } as MsgData;
     return eposmsg;
   },
 
   getAdminInfoMessage(): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.ADMININFO;
-    eposmsg.data = {};
+    eposmsg.request = REQUEST.ADMININFO;
+    eposmsg.data = {} as MsgData;
     return eposmsg;
   },
 
   getReconnectMessage(prevId: string, curId: string, dataId: number): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.RECONNECT;
+    eposmsg.request = REQUEST.RECONNECT;
     eposmsg.data = {
       old_client_id: prevId,
       new_client_id: curId,
       received_id: dataId,
-    };
+    } as MsgData;
     return eposmsg;
   },
 
   getDisconnectMessage(connectionId: string): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.DISCONNECT;
+    eposmsg.request = REQUEST.DISCONNECT;
     eposmsg.data = {
       client_id: connectionId,
-    };
+    } as MsgData;
     return eposmsg;
   },
 
@@ -123,82 +124,70 @@ export const MessageFactory = {
       deviceTypeName = 'type_hybrid_printer';
     }
 
-    eposmsg.request = eposmsg.REQUEST.OPENDEVICE;
+    eposmsg.request = REQUEST.OPENDEVICE;
     eposmsg.deviceId = deviceId;
     eposmsg.data = {
       type: deviceTypeName,
       crypto: isCrypto,
       buffer: isBufferEnable,
-    };
+    } as MsgData;
 
     return eposmsg;
   },
 
   getCloseDeviceMessage(deviceId: string): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.CLOSEDEVICE;
+    eposmsg.request = REQUEST.CLOSEDEVICE;
     eposmsg.deviceId = deviceId;
-    eposmsg.data = {};
+    eposmsg.data = {} as MsgData;
     return eposmsg;
   },
 
-  getDeviceDataMessage(deviceId: string, data?: any, crypto?: boolean): ePosDeviceMessage {
+  getDeviceDataMessage(deviceId: string, data: Data, crypto?: boolean): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.DEVICEDATA;
+    eposmsg.request = REQUEST.DEVICEDATA;
     eposmsg.sequence = getNextSequence();
     eposmsg.deviceId = deviceId;
-
-    if (crypto) {
-      eposmsg.data = cipher.bfEncrypt(JSON.stringify(data));
-    } else {
-      eposmsg.data = data;
-    }
-
+    eposmsg.data = crypto ? cipher.bfEncrypt(JSON.stringify(data)) : data;
     return eposmsg;
   },
 
-  getServiceMessage(serviceId: string, isCrypt: string, data: any): ePosDeviceMessage {
+  getServiceMessage(serviceId: string, crypto: boolean, data: Data): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.SERVICEDATA;
+    eposmsg.request = REQUEST.SERVICEDATA;
     eposmsg.sequence = getNextSequence();
     eposmsg.serviceId = serviceId;
-    eposmsg.isCrypto = isCrypt;
-
-    if (isCrypt) {
-      eposmsg.data = cipher.bfEncrypt(JSON.stringify(data));
-    } else {
-      eposmsg.data = data;
-    }
-
+    eposmsg.isCrypto = crypto;
+    eposmsg.data = crypto ? cipher.bfEncrypt(JSON.stringify(data)) : data;
     return eposmsg;
   },
 
-  getOpenCommBoxMessage(data: any): ePosDeviceMessage {
+  getOpenCommBoxMessage(data: Data): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.OPENCOMMBOX;
+    eposmsg.request = REQUEST.OPENCOMMBOX;
     eposmsg.sequence = getNextSequence();
     eposmsg.data = data;
     return eposmsg;
   },
 
-  getCloseCommBoxMessage(data: any): ePosDeviceMessage {
+  getCloseCommBoxMessage(data: Data): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.CLOSECOMMBOX;
+    eposmsg.request = REQUEST.CLOSECOMMBOX;
     eposmsg.sequence = getNextSequence();
     eposmsg.data = data;
     return eposmsg;
   },
 
-  getCommBoxDataMessage(data: any): ePosDeviceMessage {
+  getCommBoxDataMessage(data: Data): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
-    eposmsg.request = eposmsg.REQUEST.COMMDATA;
+    eposmsg.request = REQUEST.COMMDATA;
     eposmsg.sequence = getNextSequence();
     eposmsg.data = data;
     return eposmsg;
   },
 
-  decrypt(data: string): any {
+  decrypt(data: string): MsgData {
     const decryptedData = cipher.bfDecrypt(data);
-    return JSON.parse(decryptedData);
+    return JSON.parse(decryptedData) as MsgData;
   },
 };

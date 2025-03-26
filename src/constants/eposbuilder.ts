@@ -124,3 +124,7 @@ export const LAYOUT_LABEL_BM = "label_bm";
 export const HALFTONE_DITHER = 0;
 export const HALFTONE_ERROR_DIFFUSION = 1;
 export const HALFTONE_THRESHOLD = 2;
+export const UNSIGNED_BYTE_MAX = 255;
+export const UNSIGNED_SHORT_MAX = 65535;
+export const SIGNED_SHORT_MAX = 32767;
+export const SIGNED_SHORT_MIN = -32768;

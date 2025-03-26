@@ -1,4 +1,4 @@
-import { ePOSPrint } from "../components/ePOSPrint";
+import { ePOSPrint } from "../builders/ePOSPrint";
 
 // Helper functions
 export function fireReceiveEvent(epos: ePOSPrint, success: boolean, code: string, status: number, battery: number, printjobid: string) {

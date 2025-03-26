@@ -1,16 +1,7 @@
+import { SendParams } from '../types';
 import { ePOSBuilder } from './ePOSBuilder';
 
-type EventHandler = (event?: any) => void;
-
-
-type EposPrintResponse = {
-  success: boolean;
-  code?: string;
-  status?: number;
-  battery?: number;
-  printJobId?: string;
-}
-
+type EventHandler = (event?: any, sq?: number) => void;
 
 interface ePOSEvents {
   onreceive: EventHandler | null;
@@ -119,90 +110,143 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     this.send(printjobid);
   }
 
-  send(request?: string, printjobid?: string): void {
-    const args = arguments.length;
+  getSendParams(params: [string?, string?, string?]): SendParams {
+    let address: string = this.address;
+    let request: string = new ePOSBuilder().toString();
+    let printjobid: string = '';
+    
+    const isPrintRequest = Boolean(params.find(p => p && /^<epos/.test(p)));
+
+    const len = params.length;
+    const [first] = params;
+    switch (len) {
+      case 0: break;
+      case 1: {
+        if (/^<epos/.test(first!)) {
+          // sending job
+          [request = request] = params;
+        } else {
+          // querying job status
+          [printjobid = printjobid] = params;
+        }
+        break;
+      }
+      case 2: {
+        if (/^<epos/.test(first!)) {
+          // sending job with printjobid
+          [request = request, printjobid = printjobid] = params;
+        } else {
+          // querying status with printjobid to another address
+          [address = address, printjobid = printjobid] = params;
+        }
+        break;
+      }        
+      case 3: {
+        // sending job with printjobid to another address
+        [address = address, request = request, printjobid = printjobid] = params;
+        break;
+      }
+      default: throw new Error("Invalid number of arguments");
+    }
+    
+    return { address, request, printjobid, isPrintRequest };
+  }
+
+  /**
+   * Fetch status
+   * @param printjobid
+   */
+  send(printjobid?: string): void;
+  
+  /**
+   * Fetch status for a given printjobid in the given address
+   * @param address string
+   * @param printjobid string
+   */
+  send(address: string, printjobid: string | undefined): void;
+  
+  /**
+   * Send a print request to the printer with the given printerjobid
+   * @param request string
+   * @param printjobid string
+   * 
+   */
+  send(request: string, printjobid: string | undefined): void;
+
+  /**
+   * Send a print request to the printer in the given adress with the given printerjobid
+   * @param address 
+   * @param request 
+   * @param printjobid 
+   */
+  send(address: string, request: string, printjobid: string | undefined): void;
+  
+  send(...params: [string?, string?, string?]): void {
     let soap: string;
     let xhr: XMLHttpRequest;
     let tid: number;
-    let res: string | null;
     let success: boolean;
     let code: string;
     let status: number;
     let battery: number;
     const epos = this;
-    let address = this.address;
-
-    if (!/^<epos/.test(request!)) {
-      if (args < 2) {
-        printjobid = request;
-        request = new ePOSBuilder().toString();
-      } else {
-        address = request!;
-        request = printjobid;
-        printjobid = arguments[2];
-      }
-    }
+    const { address, request, printjobid, isPrintRequest } = this.getSendParams(params);
+    const isMonitoring = !isPrintRequest;
 
     soap = '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">';
     if (printjobid) {
-      soap += `<s:Header><parameter xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><printjobid>${printjobid}</printjobid></parameter></s:Header>`;
+      soap += 
+      `<s:Header><parameter xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">
+        <printjobid>${printjobid}</printjobid>
+      </parameter></s:Header>`;
     }
     soap += `<s:Body>${request}</s:Body></s:Envelope>`;
 
-    if (window.XMLHttpRequest) {
-      xhr = new XMLHttpRequest();
-      xhr.open("POST", address, true);
-      xhr.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
-      xhr.setRequestHeader("If-Modified-Since", "Thu, 01 Jan 1970 00:00:00 GMT");
-      xhr.setRequestHeader("SOAPAction", '""');
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          clearTimeout(tid);
-          if (xhr.status === 200 && xhr.responseXML) {
-            const resXML = xhr.responseXML.getElementsByTagName("response");
-            if (resXML.length > 0) {
-              success = /^(1|true)$/.test(resXML[0].getAttribute("success") || "");
-              code = resXML[0].getAttribute("code") || "";
-              status = parseInt(resXML[0].getAttribute("status") || "0");
-              battery = parseInt(resXML[0].getAttribute("battery") || "0");
-              const printjobidXML = xhr.responseXML.getElementsByTagName("printjobid");
-              printjobid = printjobidXML.length > 0 ? printjobidXML[0].textContent || "" : "";
-              if (args > 0) {
-                fireReceiveEvent(epos, success, code, status, battery, printjobid);
-              } else {
-                fireStatusEvent(epos, status, battery);
-              }
+    xhr = new XMLHttpRequest();
+    xhr.open("POST", address, true);
+    xhr.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
+    xhr.setRequestHeader("If-Modified-Since", "Thu, 01 Jan 1970 00:00:00 GMT");
+    xhr.setRequestHeader("SOAPAction", '""');
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        clearTimeout(tid);
+        if (xhr.status === 200 && xhr.responseXML) {
+          const resXML = xhr.responseXML.getElementsByTagName("response");
+          if (resXML.length > 0) {
+            success = /^(1|true)$/.test(resXML[0].getAttribute("success") || "");
+            code = resXML[0].getAttribute("code") || "";
+            status = parseInt(resXML[0].getAttribute("status") || "0");
+            battery = parseInt(resXML[0].getAttribute("battery") || "0");
+            const printjobidXML = xhr.responseXML.getElementsByTagName("printjobid");
+            const printjobidRes = printjobidXML.length > 0 ? printjobidXML[0].textContent || "" : "";
+            if (isPrintRequest) {
+              fireReceiveEvent(epos, success, code, status, battery, printjobidRes);
             } else {
-              if (args > 0) {
-                fireErrorEvent(epos, xhr.status, xhr.responseText);
-              } else {
-                fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
-              }
+              fireStatusEvent(epos, status, battery);
             }
+          } else if (isPrintRequest) {
+            fireErrorEvent(epos, xhr.status, xhr.responseText);
           } else {
-            if (args > 0) {
-              fireErrorEvent(epos, xhr.status, xhr.responseText);
-            } else {
-              fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
-            }
+            fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
           }
-          if (args < 1) {
-            updateStatus(epos);
-          }
-        };
+          // xhr.status !== 200
+        } else if (isPrintRequest) {
+          fireErrorEvent(epos, xhr.status, xhr.responseText);
+        } else {
+          fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
+        }
 
-        tid = setTimeout(() => {
-          xhr.abort();
-        }, epos.timeout);
+        if (isMonitoring) {
+          updateStatus(epos);
+        }
+      };
 
-        xhr.send(soap);
-      }
+      tid = setTimeout(() => xhr.abort(), epos.timeout);
+      xhr.send(soap);
+    }
 
-      if (args < 1) {
-        epos.intervalxhr = xhr;
-      }
-    } else {
-      throw new Error("XMLHttpRequest is not supported");
+    if (isMonitoring) {
+      epos.intervalxhr = xhr;
     }
   }
 }

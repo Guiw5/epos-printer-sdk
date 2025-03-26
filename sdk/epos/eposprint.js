@@ -90,46 +90,7 @@ ePOSPrint.prototype.send = function(request, printjobid) {
   soap += "<s:Body>" + request + "</s:Body></s:Envelope>";
   if (window.XMLHttpRequest) {
     xhr = new XMLHttpRequest();
-    if (!("withCredentials" in xhr) && window.XDomainRequest) {
-      xhr = new XDomainRequest();
-      xhr.open("POST", address, true);
-      xhr.onload = function() {
-        res = xhr.responseText;
-        if (/response/.test(res)) {
-          success = /success\s*=\s*"\s*(1|true)\s*"/.test(res);
-          code = res.match(/code\s*=\s*"\s*(\S*)\s*"/) ? RegExp.$1 : "";
-          status = res.match(/status\s*=\s*"\s*(\d+)\s*"/) ? parseInt(RegExp.$1) : 0;
-          battery = res.match(/battery\s*=\s*"\s*(\d+)\s*"/) ? parseInt(RegExp.$1) : 0;
-          printjobid = res.match(/<printjobid>\s*(\S*)\s*<\/printjobid>/) ? RegExp.$1 : "";
-          if (args > 0) {
-            fireReceiveEvent(epos, success, code, status, battery, printjobid)
-          } else {
-            fireStatusEvent(epos, status, battery)
-          }
-        } else {
-          if (args > 0) {
-            fireErrorEvent(epos, 0, xhr.responseText)
-          } else {
-            fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0)
-          }
-        }
-        if (args < 1) {
-          updateStatus(epos)
-        }
-      };
-      xhr.onerror = function() {
-        if (args > 0) {
-          fireErrorEvent(epos, 0, xhr.responseText)
-        } else {
-          fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
-          updateStatus(epos)
-        }
-      };
-      xhr.onprogress = function() {};
-      xhr.ontimeout = xhr.onerror;
-      xhr.timeout = epos.timeout;
-      xhr.send(soap)
-    } else {
+
       xhr.open("POST", address, true);
       xhr.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
       xhr.setRequestHeader("If-Modified-Since", "Thu, 01 Jan 1970 00:00:00 GMT");
@@ -178,9 +139,7 @@ ePOSPrint.prototype.send = function(request, printjobid) {
     if (args < 1) {
       epos.intervalxhr = xhr
     }
-  } else {
-    throw new Error("XMLHttpRequest is not supported")
-  }
+  
 };
 
 function fireReceiveEvent(epos, success, code, status, battery, printjobid) {
