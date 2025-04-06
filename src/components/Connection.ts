@@ -1,5 +1,6 @@
 import type { Socket } from "socket.io-client";
 import { ERRORS, IF_EPOSPRINT, IF_EPOSDISPLAY, RESULTS, IF_EPOSDEVICE, IF_ALL, CONNECT } from "../constants/connection";
+import type { ePosDeviceMessage } from "./ePosDeviceMessage";
 
 export class Connection {
   // public OK: string = 'OK';
@@ -50,7 +51,8 @@ export class Connection {
             if (xhr!.status === 200) {
               resolve(RESULTS.OK);
             } else {
-              resolve(ERRORS.ERROR_PARAMETER);
+              console.error('probe error', xhr?.status);
+              reject(ERRORS.ERROR_PARAMETER);
             }
           }
         };
@@ -61,28 +63,30 @@ export class Connection {
         xhr.timeout = 10000;
         xhr.send(postdata);
       } catch (e) {
+        console.error(e);
         reject(ERRORS.ERROR_PARAMETER);
       }
-      
     });
   }
 
-  public async probeWebServiceIF(): Promise<number> {
-    return new Promise(async (resolve, reject) => {
-      const startTime = Date.now();
-      const printUrl = `${this.getOrigin()}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
-      const printData = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>`;
+  public async probeWebServiceIF({ display }: { display?: boolean } = {}): Promise<number> {
+    console.log('probeWebServiceIF', this.getOrigin());
+    
+    const startTime = Date.now();
+    const printUrl = `${this.getOrigin()}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
+    const printData = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>`;
+    const printResult = await this.probe(printUrl, printData);
+    this.registIFAccessResult(IF_EPOSPRINT, printResult);
+
+    if (display) {
       const displayUrl = `${this.getOrigin()}/cgi-bin/eposDisp/service.cgi?devid=local_display&timeout=10000`;
       const displayData = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-display xmlns="http://www.epson-pos.com/schemas/2012/09/epos-display"></epos-display></s:Body></s:Envelope>`;
-
-      const printResult = await this.probe(printUrl, printData);
-      this.registIFAccessResult(IF_EPOSPRINT, printResult);
-
       const displayResult = await this.probe(displayUrl, displayData);
       this.registIFAccessResult(IF_EPOSDISPLAY, displayResult);
+    }
 
-      resolve(Date.now() - startTime);
-    });
+    return (Date.now() - startTime);
+  
   }
 
   public setSocket(socket: Socket): void {
@@ -94,7 +98,7 @@ export class Connection {
     this.setAddress("", "", 0);
   }
 
-  public emit(eposmsg: any): void {
+  public emit(eposmsg: ePosDeviceMessage): void {
     try {
       if (!this.socket) {
         return;
@@ -124,6 +128,10 @@ export class Connection {
     if (typeof callback === 'function') {
       this.callback = callback;
     }
+  }
+
+  public getCallback(): ((result: string) => void) | null {
+    return this.callback;
   }
 
   public changeStatus(target: number, status: number): void {

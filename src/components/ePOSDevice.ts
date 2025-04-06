@@ -7,7 +7,7 @@ import { DeviceSelector } from './DeviceSelector';
 import { Ofsc } from './Ofsc';
 import { CookieIO } from './CookieIO';
 import { SocketGarbageBox } from './SocketGarbageBox';
-import type { ConnectionCallback, DeviceCallback, DeviceType } from '../types';
+import type { DeviceCallback, DeviceType } from '../types';
 import { 
   RESULTS,
   ERRORS as CONNECTION_ERRORS,
@@ -50,13 +50,13 @@ export class ePOSDevice {
   // Private members
   private socket: Socket | null = null;
   private connectionId: string | null = null;
-  private reconnectTimerId: number | null = null;
+  private reconnectTimerId: number | NodeJS.Timeout = 0;
   private reconnectTryCount = 0;
   private admin = "";
   private location = "";
   private recievedDataId = 0;
   private connectStartTime = 0;
-  private waitRetryConnectId: number = 0;
+  private waitRetryConnectId: number | NodeJS.Timeout = 0;
   private eposprint = false;
   private cbCheckEposPrintService: ((result: string) => void) | null = null;
 
@@ -100,37 +100,44 @@ export class ePOSDevice {
     return this.eposprint;
   }
 
-  
-  connect(address: string, port: number, callback: ConnectionCallback, options?: ConnectionOptions): void {
-    if (
-      this.conection.status(IF_EPOSDEVICE) !== DISCONNECT || 
-      this.conection.status(IF_EPOSPRINT) !== DISCONNECT
-    ) {
-      this.disconnect();
-    }
+  async connect(address: string, port: number, options?: ConnectionOptions): Promise<string> {
+    try {
+      if (
+        this.conection.status(IF_EPOSDEVICE) !== DISCONNECT || 
+        this.conection.status(IF_EPOSPRINT) !== DISCONNECT
+      ) {
+        this.disconnect();
+      }
 
-    this.connectStartTime = new Date().getTime();
-    const protocol = port === IFPORT_EPOSDEVICE ? "http" : "https";
-    this.conection.setAddress(protocol, address, port);
-    this.conection.registCallback(callback);
-    this.eposprint = options?.eposprint ?? false;
+      this.connectStartTime = new Date().getTime();
+      const protocol = port === IFPORT_EPOSDEVICE ? "http" : "https";
+      this.conection.setAddress(protocol, address, port);
+      // this.conection.registCallback(callback);
+      this.eposprint = options?.eposprint ?? false;
 
-    if (this.eposprint) {
-      // TODO: verificar parametro y promise de probeWebServiceIF
-      this.conection.probeWebServiceIF().then(() => {
-        const result = this.conection.isUsablePrintIF() ? 
-          RESULTS.OK : 
-          CONNECTION_ERRORS.ERROR_PARAMETER;
-        callback(result);
-      });
-    } else {
-      this.connectBySocketIo(CONNECT_TIMEOUT);
+      if (this.eposprint) {
+        console.log('connecting web service');
+        await this.conection.probeWebServiceIF();        
+        console.log('connected web service', this.conection.isUsablePrintIF());
+      } else {
+        console.log('connecting socket');
+        this.connectBySocketIo(CONNECT_TIMEOUT);
+        console.log('connected socket', this.conection.isUsablePrintIF());
+      }
+
+      if (this.conection.isUsablePrintIF()) {
+        return RESULT_OK;
+      } else {
+        return CONNECTION_ERRORS.ERROR_PARAMETER;
+      }
+    } catch (error) {
+      return CONNECTION_ERRORS.ERROR_PARAMETER;
     }
   }
 
   isConnected(): boolean {
     const devIsConnect = [CONNECT, RECONNECTING].includes(this.conection.status(IF_EPOSDEVICE));
-    const wsIsConnect = [CONNECT, RECONNECTING].includes(this.conection.status(IF_EPOSPRINT));
+    const wsIsConnect = [CONNECT].includes(this.conection.status(IF_EPOSPRINT));
     return devIsConnect || wsIsConnect;
   }
 
@@ -180,6 +187,7 @@ export class ePOSDevice {
       this.deviceIntances.add(element);
 
       if (this.conection.isUsableDeviceIF()) {
+        console.log('isUsableDeviceIF true', deviceId, deviceType, isCrypto, isBufferEnable);
         const eposmsg = MessageFactory.getOpenDeviceMessage(
           deviceId, 
           deviceType, 
@@ -188,13 +196,13 @@ export class ePOSDevice {
         );
         this.conection.emit(eposmsg);
       } else {
-        // this.checkEposPrintService(deviceId, deviceType, (result: string) => {
-        //   if (result === RESULT_OK) {
-        //     callback(deviceObject, RESULT_OK);
-        //   } else {
-        //     callback(null, DEVICE_ERRORS.ERROR_DEVICE_NOT_FOUND);
-        //   }
-        // });
+        this.checkEposPrintService(deviceId, deviceType, (result: string) => {
+          if (result === RESULT_OK) {
+            callback(deviceObject, RESULT_OK);
+          } else {
+            callback(null, DEVICE_ERRORS.ERROR_DEVICE_NOT_FOUND);
+          }
+        });
       }
     } catch (e: any) {
       const message = e.message || DEVICE_ERRORS.ERROR_DEVICE_OPEN;
@@ -265,6 +273,7 @@ export class ePOSDevice {
     this.socket.on("connect", () => {
       try {
         this.gbox.dispose();
+        this.conection.getCallback()?.(RESULT_OK);
       } catch (e) {
         // Ignore disposal errors
       }
@@ -300,7 +309,7 @@ export class ePOSDevice {
     });
 
     this.socket.on("message", (data: any) => {
-        this.handleSocketMessage(data);
+      this.handleSocketMessage(data);
     });
   }
 
@@ -329,7 +338,7 @@ export class ePOSDevice {
       if (eposmsg.data_id !== 0) {
         this.recievedDataId = eposmsg.data_id;
       }
-
+      console.log('handleSocketMessage', eposmsg);
       switch (eposmsg.request) {
         case REQUEST.CONNECT:
           this.procConnect(eposmsg);
@@ -380,9 +389,9 @@ export class ePOSDevice {
 
   private procConnect(eposmsg: ePosDeviceMessage): void {
     try {
-      if (this.reconnectTimerId != null) {
+      if (this.reconnectTimerId !== 0) {
         clearInterval(this.reconnectTimerId);
-        this.reconnectTimerId = null;
+        this.reconnectTimerId = 0;
       }
 
       let response = null;
@@ -599,9 +608,9 @@ export class ePOSDevice {
     this.connectionId = null;
     this.conection.closeSocket();
 
-    if (this.reconnectTimerId) {
+    if (this.reconnectTimerId !== 0) {
       clearInterval(this.reconnectTimerId);
-      this.reconnectTimerId = null;
+      this.reconnectTimerId = 0;
     }
 
     this.reconnectTryCount = 0;
@@ -743,5 +752,76 @@ export class ePOSDevice {
     } catch (e) {
       // Ignorar errores en el manejo de errores
     }
+  }
+
+  private async checkEposPrintService(deviceId: string, deviceType: DeviceType, callback: (result: string) => void): Promise<void> {
+    this.cbCheckEposPrintService = callback;
+    
+    let postUrl = `${this.conection.getOrigin()}/cgi-bin/epos/service.cgi?devid=${deviceId}&timeout=10000`;
+    let postData = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>';
+        
+    if (deviceType === TYPES.TYPE_DISPLAY) {
+      postUrl = `${this.conection.getOrigin()}/cgi-bin/eposDisp/service.cgi?devid=${deviceId}&timeout=10000`;
+      postData = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-display xmlns="http://www.epson-pos.com/schemas/2012/09/epos-display"></epos-display></s:Body></s:Envelope>';
+    }
+
+    try {
+      const response = await this.makeServiceRequest(postUrl, postData);
+      
+      if (this.cbCheckEposPrintService) {
+        if (response.success) {
+          this.cbCheckEposPrintService(RESULT_OK);
+        } else {
+          this.cbCheckEposPrintService(DEVICE_ERRORS.ERROR_DEVICE_NOT_FOUND);
+        }
+        this.cbCheckEposPrintService = null;
+      }
+    } catch (error) {
+      if (this.cbCheckEposPrintService) {
+        this.cbCheckEposPrintService(
+          error === 'timeout' ? 
+            CONNECTION_ERRORS.ERROR_TIMEOUT : 
+            CONNECTION_ERRORS.ERROR_PARAMETER
+        );
+        this.cbCheckEposPrintService = null;
+      }
+    }
+  }
+
+  private makeServiceRequest(url: string, data: string): Promise<{ success: boolean }> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.timeout = 10000;
+
+      xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
+      xhr.setRequestHeader('If-Modified-Since', 'Thu, 01 Jun 1970 00:00:00 GMT');
+      xhr.setRequestHeader('SOAPAction', '""');
+
+      const timeoutId = setTimeout(() => {
+        xhr.abort();
+        reject('timeout');
+      }, 5000);
+
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+        
+        clearTimeout(timeoutId);
+
+        if (xhr.status === 200 && xhr.responseXML) {
+          const responses = xhr.responseXML.getElementsByTagName('response');
+          if (responses.length > 0) {
+            const success = /^(1|true)$/.test(responses[0].getAttribute('success') || '');
+            resolve({ success });
+          } else {
+            resolve({ success: false });
+          }
+        } else {
+          reject('error');
+        }
+      };
+
+      xhr.send(data);
+    });
   }
 }
