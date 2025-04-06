@@ -8,29 +8,24 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts",
-    "doc": "typedoc --entryPoints src/index.ts --out docs"
+    "doc": "typedoc --entryPoints src/index.ts --out docs",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:debug": "vitest --inspect-brk --no-file-parallelism --test-timeout=0"
   },
   "devDependencies": {
-    "@swc/core": "^1.7.26",
-    "@swc/helpers": "^0.5.13",
     "@typescript-eslint/eslint-plugin": "^8.6.0",
     "@typescript-eslint/parser": "^8.6.0",
     "eslint": "^9.11.0",
     "eslint-plugin-import": "^2.30.0",
+    "socket.io-client": "0.8.7",
     "typedoc": "^0.26.7",
     "typescript": "^5.5.3",
-    "vite": "^5.4.1"
-  },
-  "dependencies": {
-    "socket.io-client": "0.8.7"
+    "vite": "^6.2.0",
+    "vitest": "^3.0.9"
   },
   "pnpm": {
-    "ignoredBuiltDependencies": [
-      "@swc/core",
-      "esbuild"
-    ],
     "onlyBuiltDependencies": [
-      "@swc/core",
       "esbuild"
     ]
   }

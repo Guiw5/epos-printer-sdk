@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .qodo
+.cursorignore
+
+# Environment variables
+.env
+.env.test
