@@ -581,7 +581,7 @@ function inverseMod_(x: BigIntArray, n: BigIntArray): number {
 }
 
 function inverseModInt(x: number, n: number): number {
-  let a: number = 1, b: number = 0, t: number;
+  let a: number = 1, b: number = 0;
   for (;;) {
     if (x == 1) return a;
     if (x == 0) return 0;
@@ -594,6 +594,7 @@ function inverseModInt(x: number, n: number): number {
   }
 }
 
+// @ts-ignore
 function eGCD_(x: BigIntArray, y: BigIntArray, v: BigIntArray, a: BigIntArray, b: BigIntArray): void {
   let g: number = 0;
   let k: number = Math.max(x.length, y.length);
@@ -718,7 +719,7 @@ function greater(x: BigIntArray, y: BigIntArray): boolean {
 
 function divide_(x: BigIntArray, y: BigIntArray, q: BigIntArray, r: BigIntArray): void {
   let kx: number, ky: number;
-  let i: number, j: number, y1: number, y2: number, c: number, a: number, b: number;
+  let i: number, y1: number, y2: number, c: number, a: number, b: number;
   copy_(r, x);
   for (ky = y.length; y[ky - 1] == 0; ky--) {}
   b = y[ky - 1];
@@ -796,7 +797,7 @@ function int2bigInt(t: number, bits: number, minSize: number): BigIntArray {
 }
 
 function str2bigInt(s: string, base: number, minSize?: number): BigIntArray {
-  let d: number, i: number, j: number, x: BigIntArray, y: BigIntArray, kk: number;
+  let d: number, i: number, x: BigIntArray, y: BigIntArray, kk: number;
   let k: number = s.length;
   
   if (base == -1) { // comma-separated list of array elements
@@ -1108,7 +1109,7 @@ function subShift_(x: BigIntArray, y: BigIntArray, ys: number): void {
 }
 
 function sub_(x: BigIntArray, y: BigIntArray): void {
-  let i: number, c: number, k: number, kk: number;
+  let i: number, c: number, k: number;
   k = x.length < y.length ? x.length : y.length;
 
   for (c = 0, i = 0; i < k; i++) {
@@ -1125,7 +1126,7 @@ function sub_(x: BigIntArray, y: BigIntArray): void {
 }
 
 function add_(x: BigIntArray, y: BigIntArray): void {
-  let i: number, c: number, k: number, kk: number;
+  let i: number, c: number, k: number;
   k = x.length < y.length ? x.length : y.length;
   for (c = 0, i = 0; i < k; i++) {
     c += x[i] + y[i];
@@ -1181,7 +1182,7 @@ function multMod_(x: BigIntArray, y: BigIntArray, n: BigIntArray): void {
 }
 
 function squareMod_(x: BigIntArray, n: BigIntArray): void {
-  let i: number, j: number, d: number, c: number, kx: number, kn: number, k: number;
+  let i: number, j: number, c: number, kx: number, k: number;
   
   for (kx = x.length; kx > 0 && !x[kx - 1]; kx--) {}
   k = kx > n.length ? 2 * kx : 2 * n.length;

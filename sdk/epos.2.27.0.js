@@ -1,4 +1,3 @@
-
 /*! Epson ePOS SDK Version 2.27.0 Copyright(C) Seiko Epson Corporation 2016 - 2023 All rights reserved. */
 (function (window, undefined) {
   function callbackInfo() {
@@ -5728,13 +5727,16 @@
       var self = this;
       this.socket.on("connect", function (data) {
         try {
+          console.log('socket: on connect', self.socket);
           self.gbox.dispose();
         } catch (e) {}
       });
       this.socket.on("close", function () {
+        console.log('socket: on close', self.socket);
         selfofProb.changeStatus(selfofProb.IF_EPOSDEVICE, tselfofProb.DISCONNECT);
       });
       this.socket.on("disconnect", function (data) {
+        console.log('socket: on disconnect', self.socket);
         try {
           if (selfofProb.status(selfofProb.IF_EPOSDEVICE) == selfofProb.RECONNECTING) {
             return;
@@ -5748,6 +5750,7 @@
         } catch (e) {}
       });
       this.socket.on("error", function () {
+        console.log('socket: on error', self.socket);
         try {
           selfofProb.probeWebServiceIF(function (accessTime) {
             if (selfofProb.isUsablePrintIF()) {
@@ -5761,6 +5764,7 @@
         } catch (e) {}
       });
       this.socket.on("connect_failed", function () {
+        console.log('socket: on connect_failed', self.socket);
         try {
           selfofProb.probeWebServiceIF(function (accessTime) {
             if (selfofProb.isUsablePrintIF()) {
@@ -5774,6 +5778,7 @@
         } catch (e) {}
       });
       this.socket.on("message", function (data) {
+        console.log('socket: on message', self.socket);
         try {
           var eposmsg = MessageFactory.parseRequestMessage(data);
           if (eposmsg.data_id != "") {
@@ -6511,14 +6516,15 @@
     var PUBKEY_TEST_TEXT = "hello";
     var sequence = 0;
     var cipher = new ePosCrypto();
-    getNextSequence = function () {
-      sequence++;
-      if (Number.MAX_VALUE == sequence) {
-        sequence = 1;
-      }
-      return String(sequence);
-    };
+    
     return {
+      getNextSequence: function () {
+        sequence++;
+        if (Number.MAX_VALUE == sequence) {
+          sequence = 1;
+        }
+        return String(sequence);
+      },
       parseRequestMessage: function (message) {
         var eposmsg = new ePosDeviceMessage();
         eposmsg.request = message[0];
@@ -7267,7 +7273,7 @@
       }
       return true;
     };
-  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent.exports);
+  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports : undefined);
   (function (exports, nativeJSON) {
     if (nativeJSON && nativeJSON.parse) {
       return (exports.JSON = { parse: nativeJSON.parse, stringify: nativeJSON.stringify });
@@ -7425,7 +7431,7 @@
     var reasons = (parser.reasons = ["transport not supported", "client not handshaken", "unauthorized"]);
     var advice = (parser.advice = ["reconnect"]);
     var JSON = io.JSON,
-      indexOf = io.util.indexOf;
+      indexOf = io.util?.indexOf;
     parser.encodePacket = function (packet) {
       var type = indexOf(packets, packet.type),
         id = packet.id || "",
@@ -7558,14 +7564,14 @@
         return [parser.decodePacket(data)];
       }
     };
-  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent.exports);
+  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports : {});
   (function (exports, io) {
     exports.Transport = Transport;
     function Transport(socket, sessid) {
       this.socket = socket;
       this.sessid = sessid;
     }
-    io.util.mixin(Transport, io.EventEmitter);
+    io.util?.mixin(Transport, io.EventEmitter);
     Transport.prototype.onData = function (data) {
       this.clearCloseTimeout();
       if (this.socket.connected || this.socket.connecting || this.socket.reconnecting) {
@@ -7647,7 +7653,7 @@
     Transport.prototype.ready = function (socket, fn) {
       fn.call(this);
     };
-  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent.exports);
+  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports: {});
   (function (exports, io, global) {
     exports.Socket = Socket;
     function Socket(options) {
@@ -7691,7 +7697,7 @@
         this.connect();
       }
     }
-    io.util.mixin(Socket, io.EventEmitter);
+    io.util?.mixin(Socket, io.EventEmitter);
     Socket.prototype.of = function (name) {
       if (!this.namespaces[name]) {
         this.namespaces[name] = new io.SocketNamespace(this, name);
@@ -7896,7 +7902,7 @@
         this.publish("disconnect", reason);
       }
     };
-  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent.exports, this);
+  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports : {}, this);
   (function (exports, io) {
     exports.SocketNamespace = SocketNamespace;
     function SocketNamespace(socket, name) {
@@ -7907,7 +7913,7 @@
       this.ackPackets = 0;
       this.acks = {};
     }
-    io.util.mixin(SocketNamespace, io.EventEmitter);
+    io.util?.mixin(SocketNamespace, io.EventEmitter);
     SocketNamespace.prototype.$emit = io.EventEmitter.prototype.emit;
     SocketNamespace.prototype.of = function () {
       return this.socket.of.apply(this.socket, arguments);
@@ -8017,7 +8023,7 @@
         this.namespace.emit.apply(this.namespace, arguments);
       }
     }
-  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent.exports);
+  })("undefined" != typeof io ? io : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports : {});
   (function (exports, io, global) {
     exports.websocket = WS;
     function WS(socket) {
@@ -8076,7 +8082,7 @@
       return true;
     };
     io.transports.push("websocket");
-  })("undefined" != typeof io ? io.Transport : module.exports, "undefined" != typeof io ? io : module.parent.exports, this);
+  })("undefined" != typeof io ? io.Transport : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports : {}, this);
   (function (exports, io) {
     exports.flashsocket = Flashsocket;
     function Flashsocket() {
@@ -8135,7 +8141,7 @@
       WEB_SOCKET_DISABLE_AUTO_INITIALIZATION = true;
     }
     io.transports.push("flashsocket");
-  })("undefined" != typeof io ? io.Transport : module.exports, "undefined" != typeof io ? io : module.parent.exports);
+  })("undefined" != typeof io ? io.Transport : module.exports, "undefined" != typeof io ? io : module.parent ? module.parent.exports : {});
   (function () {
     if ("undefined" == typeof window || window.WebSocket) {
       return;

@@ -30,8 +30,8 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   status: number;
   battery: number;
   drawerOpenLevel: number;
-  intervalid?: number;
-  intervalxhr?: XMLHttpRequest;
+  intervalid: number | NodeJS.Timeout | null = null;
+  intervalxhr: XMLHttpRequest | null = null;
 
   // ASB Constants
   ASB_NO_RESPONSE = 1;
@@ -98,11 +98,11 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     this.enabled = false;
     if (this.intervalid) {
       clearTimeout(this.intervalid);
-      delete this.intervalid;
+      this.intervalid = null;
     }
     if (this.intervalxhr) {
       this.intervalxhr.abort();
-      delete this.intervalxhr;
+      this.intervalxhr = null;
     }
   }
 
@@ -184,7 +184,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   send(...params: [string?, string?, string?]): void {
     let soap: string;
     let xhr: XMLHttpRequest;
-    let tid: number;
+    let tid: number | NodeJS.Timeout;
     let success: boolean;
     let code: string;
     let status: number;
@@ -345,12 +345,12 @@ function updateStatus(epos: ePOSPrint): void {
     if (isNaN(delay) || delay < 1000) {
       delay = 3000;
     }
-    epos.intervalid = window.setTimeout(() => {
-      delete epos.intervalid;
+    epos.intervalid = setTimeout(() => {
+      epos.intervalid = null;
       if (epos.enabled) {
         epos.send();
       }
     }, delay);
   }
-  delete epos.intervalxhr;
+  epos.intervalxhr = null;
 }

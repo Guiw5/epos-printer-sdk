@@ -1,6 +1,5 @@
 import { DeviceConstructor } from "../types";
-
-const modules = import.meta.glob('../devices/*.ts'); 
+const modules = import.meta.glob('../devices/*.ts');
 
 /**
  * Loads a named class from the devices directory.
