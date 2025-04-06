@@ -1,4 +1,5 @@
 import { Connection } from "./Connection";
+import { MsgData } from "./ePosDeviceMessage";
 import { MessageFactory } from "./MessageFactory";
 
 export class Ofsc {
@@ -32,7 +33,7 @@ export class Ofsc {
     }
 
     try {
-      const data = { type: "print", timeout, printdata: xml };
+      const data = { type: "print", timeout, printdata: xml } as MsgData;
       const eposmsg = MessageFactory.getServiceMessage(this.SERVICE_ID, crypto, data);
       this.connection.emit(eposmsg);
     } catch (e) {

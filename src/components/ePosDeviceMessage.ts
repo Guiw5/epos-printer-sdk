@@ -1,6 +1,7 @@
 import { CODES, REQUEST } from "../constants/eposmessage";
 
 export type MsgData = {
+  password: string;
   protocol_version: number;
   client_id: string;
   prime: string;

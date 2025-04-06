@@ -1,13 +1,13 @@
 import { Connection } from "../components/Connection";
 import { MessageFactory } from "../components/MessageFactory";
-
+import { MsgData } from "../components/ePosDeviceMessage";
 export class DeviceTerminal {
   private deviceID: string;
   private isCrypto: boolean;
   private connection: Connection | null = null;
 
-  private onshutdown: ((data: any) => void) | null = null;
-  private onrestart: ((data: any) => void) | null = null;
+  private onshutdown: ((data: MsgData) => void) | null = null;
+  private onrestart: ((data: MsgData) => void) | null = null;
 
   constructor(deviceID: string, isCrypto: boolean, connection?: Connection) {
     this.deviceID = deviceID;
@@ -19,13 +19,13 @@ export class DeviceTerminal {
     this.connection = connection;
   }
 
-  shutdown(password: string, callback: (data: any) => void): number {
+  shutdown(password: string, callback: (data: MsgData) => void): number {
     this.onshutdown = callback;
-    const data = { type: "shutdown", password };
+    const data = { type: "shutdown", password } as MsgData;
     return this.send(data);
   }
 
-  client_onshutdown(data: any): void {
+  client_onshutdown(data: MsgData): void {
     try {
       if (typeof this.onshutdown !== "function") {
         return;
@@ -34,13 +34,13 @@ export class DeviceTerminal {
     } catch (e) {}
   }
 
-  restart(password: string, callback: (data: any) => void): number {
+  restart(password: string, callback: (data: MsgData) => void): number {
     this.onrestart = callback;
-    const data = { type: "restart", password };
+    const data = { type: "restart", password } as MsgData;
     return this.send(data);
   }
 
-  client_onrestart(data: any): void {
+  client_onrestart(data: MsgData): void {
     try {
       if (typeof this.onrestart !== "function") {
         return;
@@ -49,7 +49,7 @@ export class DeviceTerminal {
     } catch (e) {}
   }
 
-  private send(data: Record<string, any>): number {
+  private send(data: MsgData): number {
     const eposmsg = MessageFactory.getDeviceDataMessage(this.deviceID, data, this.isCrypto);
     let sequence = -1;
     try {
