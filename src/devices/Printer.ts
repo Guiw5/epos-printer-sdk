@@ -3,6 +3,7 @@ import { ePOSBuilder } from "../builders/ePOSBuilder";
 import { MessageFactory } from "../components/MessageFactory";
 import type { ePOSDevice } from "../components/ePOSDevice";
 import { Data } from "../components/ePosDeviceMessage";
+import { buildSoapEnvelope, postPrintRequest, PrintServiceError } from "../builders/httpTransport";
 export class Printer extends CanvasPrint {
   deviceID: string;
   isCrypto: boolean;
@@ -28,18 +29,15 @@ export class Printer extends CanvasPrint {
     return this.message;
   }
 
-  getPrintJobStatus(printjobid: string): void {
+  getPrintJobStatus(printjobid: string): Promise<void> {
     this.setXmlString("");
-    this.send(printjobid);
+    return this.send(printjobid);
   }
 
-  // send(): number;
-  send(printjobid: string): number;
-  send(printdata: string, printjobid: string): number;
-  send(address: string, printdata: string, printjobid: string): number;
-  send(...params: [string?, string?, string?]): number {
-    let sq = -1;
-    
+  send(printjobid: string): Promise<void>;
+  send(printdata: string, printjobid: string): Promise<void>;
+  send(address: string, printdata: string, printjobid: string): Promise<void>;
+  async send(...params: [string?, string?, string?]): Promise<void> {
     let address = `${this.connection?.getOrigin()}/cgi-bin/epos/service.cgi?devid=${this.deviceID}&timeout=${this.timeout}`;
     let printdata = this.toString();
     let printjobid;
@@ -57,7 +55,7 @@ export class Printer extends CanvasPrint {
       default:
         break;
     }
-    
+
     if (!this.ePosDev.getEposprint() && this.connection?.isUsableDeviceIF()) {
       try {
         const data = { type: "print", printdata, printjobid, timeout: this.timeout } as Data;
@@ -65,62 +63,20 @@ export class Printer extends CanvasPrint {
         this.connection.emit(eposmsg);
         this.force = false;
         this.setXmlString("");
-      } catch (e) {
-        sq = -1;
+      } catch {
+        // Ignored: nothing more to do if the socket emit itself throws.
       }
-    } else {
-      const message = this.addSoapXml(printdata, printjobid);
-      this.sendRequestViaHttp(address, message);
-      sq = 0;
+      return;
     }
 
-    return sq;
-  }
-
-  private addSoapXml(printdata: string, printjobid?: string): string {
-    let soap = '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">';
-    if (printjobid) {
-      soap += `<s:Header><parameter xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"><printjobid>${printjobid}</printjobid></parameter></s:Header>`;
+    const soap = buildSoapEnvelope(printdata, printjobid);
+    try {
+      const res = await postPrintRequest(address, soap, this.timeout);
+      this.fireReceiveEvent(res.success, res.code, res.status, res.battery, res.printjobid, 0);
+    } catch (err) {
+      const { status, responseText } = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
+      this.fireErrorEvent(status, responseText, 0);
     }
-    soap += `<s:Body>${printdata}</s:Body></s:Envelope>`;
-    return soap;
-  }
-
-  private sendRequestViaHttp(address: string, message: string): void {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", address, true);
-    xhr.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
-    xhr.setRequestHeader("If-Modified-Since", "Thu, 01 Jan 1970 00:00:00 GMT");
-    xhr.setRequestHeader("SOAPAction", '""');
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === 4) {
-        if (xhr.status === 200 && xhr.responseXML) {
-          this.handleSuccess(xhr.responseXML);
-        } else {
-          this.handleError(xhr.status, xhr.responseText);
-        }
-      }
-    };
-    xhr.send(message);
-  }
-
-  private handleSuccess(responseXML: Document): void {
-    const res = responseXML.getElementsByTagName("response");
-    if (res.length > 0) {
-      const [response] = res;
-      const code = response.getAttribute("code") || "";
-      const success = /^(1|true)$/.test(response.getAttribute("success") || "");
-      const status = parseInt(response.getAttribute("status") || "0");
-      const battery = parseInt(response.getAttribute("battery") || "0");
-      const printjobid = response.getElementsByTagName("printjobid")[0]?.textContent || "";
-      this.fireReceiveEvent(success, code, status, battery, printjobid, 0);
-    } else {
-      this.fireErrorEvent(0, "No response received", 0);
-    }
-  }
-
-  private handleError(status: number, responseText: string): void {
-    this.fireErrorEvent(status, responseText, 0);
   }
 
   fireReceiveEvent(success: boolean, code: string, status: number, battery: number, printjobid: string, sq: number): void {
@@ -208,37 +164,25 @@ export class Printer extends CanvasPrint {
   }
 
   startMonitor(): boolean {
-    let result = false;
     const address = `${this.connection?.getOrigin()}/cgi-bin/epos/service.cgi?devid=${this.deviceID}&timeout=10000`;
 
-    try {
-      if (!this.enabled) {
-        this.address = address;
-        this.enabled = true;
-        this.status = this.ASB_DRAWER_KICK;
-        this.sendStartMonitorCommand();
-      }
-      result = true;
-    } catch (e) {
-      throw e;
+    if (!this.enabled) {
+      this.address = address;
+      this.enabled = true;
+      this.status = this.ASB_DRAWER_KICK;
+      void this.sendStartMonitorCommand();
     }
 
-    return result;
+    return true;
   }
-  
+
   stopMonitor(): boolean {
-    let result = false;
-    try {
-      this.enabled = false;
-      if (this.timeoutid) {
-        clearTimeout(this.timeoutid);
-        delete this.timeoutid;
-      }
-      result = true;
-    } catch (e) {
-      throw e;
+    this.enabled = false;
+    if (this.timeoutid) {
+      clearTimeout(this.timeoutid);
+      delete this.timeoutid;
     }
-    return result;
+    return true;
   }
 
   finalize(): void {
@@ -251,37 +195,21 @@ export class Printer extends CanvasPrint {
       this.timeoutid = setTimeout(() => {
         delete this.timeoutid;
         if (this.enabled) {
-          this.sendStartMonitorCommand();
+          void this.sendStartMonitorCommand();
         }
       }, delay);
     }
   }
 
-  private sendStartMonitorCommand(): void {
-    const address = this.address;
-    const request = new ePOSBuilder().toString();
-    const soap = '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>' + request + '</s:Body></s:Envelope>';
-    const self = this;
+  private async sendStartMonitorCommand(): Promise<void> {
+    const soap = buildSoapEnvelope(new ePOSBuilder().toString());
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", address, true);
-    xhr.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState === 4 && xhr.status === 200 && xhr.responseXML) {
-        const res = xhr.responseXML.getElementsByTagName("response");
-        if (res.length > 0) {
-          // const success = /^(1|true)$/.test(res[0].getAttribute("success") || "");
-          // const code = res[0].getAttribute("code") || "";
-          const status = parseInt(res[0].getAttribute("status") || "0");
-          const battery = parseInt(res[0].getAttribute("battery") || "0");
-          self.fireStatusEvent(self, status, battery);
-        } else {
-          self.fireStatusEvent(self, self.ASB_NO_RESPONSE, 0);
-        }
-        self.updateStatus();
-      }
-    };
-    xhr.send(soap);
-  
+    try {
+      const res = await postPrintRequest(this.address, soap, 10000);
+      this.fireStatusEvent(this, res.status, res.battery);
+    } catch {
+      this.fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);
+    }
+    this.updateStatus();
   }
 }

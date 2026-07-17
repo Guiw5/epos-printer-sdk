@@ -29,7 +29,7 @@
     "outDir": "dist",
     "declaration": true,
     "sourceMap": true,
-    "types": ["vite/client", "vitest/jsdom"]
+    "types": ["node", "vite/client", "vitest/jsdom"]
   },
   "include": ["src"],
   "exclude": ["**/*.test.ts", "test/**"]

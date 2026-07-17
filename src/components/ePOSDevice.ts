@@ -34,6 +34,7 @@ import { DeviceElementMap } from './DeviceElementMap';
 import { DeviceElement } from './DeviceElement';
 import type { IDevice } from '../types';
 import io, { Socket } from 'socket.io-client';
+import { postPrintRequest } from '../builders/httpTransport';
 
 interface DeviceOptions {
   crypto?: boolean;
@@ -112,16 +113,22 @@ export class ePOSDevice {
       this.connectStartTime = new Date().getTime();
       const protocol = port === IFPORT_EPOSDEVICE ? "http" : "https";
       this.conection.setAddress(protocol, address, port);
-      // this.conection.registCallback(callback);
       this.eposprint = options?.eposprint ?? false;
 
       if (this.eposprint) {
         console.log('connecting web service');
-        await this.conection.probeWebServiceIF();        
+        await this.conection.probeWebServiceIF();
         console.log('connected web service', this.conection.isUsablePrintIF());
       } else {
         console.log('connecting socket');
-        this.connectBySocketIo(CONNECT_TIMEOUT);
+        // The socket handshake (CONNECT -> PUBKEY -> ADMININFO) completes
+        // asynchronously over several message round-trips; registCallback()
+        // is invoked by registIFAccessResult() once that exchange settles
+        // (success or failure), which is what this await is waiting on.
+        await new Promise<void>((resolve) => {
+          this.conection.registCallback(() => resolve());
+          this.connectBySocketIo(CONNECT_TIMEOUT);
+        });
         console.log('connected socket', this.conection.isUsablePrintIF());
       }
 
@@ -130,7 +137,7 @@ export class ePOSDevice {
       } else {
         return CONNECTION_ERRORS.ERROR_PARAMETER;
       }
-    } catch (error) {
+    } catch {
       return CONNECTION_ERRORS.ERROR_PARAMETER;
     }
   }
@@ -228,7 +235,7 @@ export class ePOSDevice {
           if ('finalize' in deviceObject) {
             deviceObject.finalize();
           }
-        } catch (e) {
+        } catch {
           // Ignore finalization errors
         }
         this.deviceIntances.remove(element.deviceId);
@@ -273,8 +280,7 @@ export class ePOSDevice {
     this.socket.on("connect", () => {
       try {
         this.gbox.dispose();
-        this.conection.getCallback()?.(RESULT_OK);
-      } catch (e) {
+      } catch {
         // Ignore disposal errors
       }
     });
@@ -324,7 +330,7 @@ export class ePOSDevice {
           this.conection.registIFAccessResult(IF_EPOSDEVICE, CONNECTION_ERRORS.ERROR_TIMEOUT);
         }
       });
-    } catch (e) {
+    } catch {
       // Ignore error handling errors
     }
   }
@@ -382,7 +388,7 @@ export class ePOSDevice {
         default:
           break;
       }
-    } catch (e) {
+    } catch {
       // Ignore message processing errors
     }
   }
@@ -434,7 +440,7 @@ export class ePOSDevice {
 
       this.cookieIo.writeId(eposmsg.data.client_id, this.conection.getAddress());
       this.connectionId = eposmsg.data.client_id;
-    } catch (e) {
+    } catch {
       this.conection.registIFAccessResult(
         IF_EPOSDEVICE,
         CONNECTION_ERRORS.ERROR_SYSTEM
@@ -482,7 +488,7 @@ export class ePOSDevice {
           const response = MessageFactory.getAdminInfoMessage();
           this.conection.emit(response);
         }
-    } catch (e) {
+    } catch {
       this.conection.registIFAccessResult(
           IF_EPOSDEVICE,
           CONNECTION_ERRORS.ERROR_SYSTEM
@@ -634,7 +640,7 @@ export class ePOSDevice {
         }
         this.deviceIntances.remove(deviceId);
       }
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror("0", deviceId, CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -653,12 +659,12 @@ export class ePOSDevice {
           if (element?.deviceObject && 'finalize' in element.deviceObject) {
             element.deviceObject.finalize();
           }
-        } catch (e) {
+        } catch {
           // Ignorar errores de finalización
         }
         this.deviceIntances.remove(deviceId);
       }
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror("0", deviceId, CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -690,12 +696,12 @@ export class ePOSDevice {
         } else if (processedData.type in deviceObject) {
           (deviceObject as any)[processedData.type](processedData, sequence);
         }
-      } catch (e) {
+      } catch {
         if (this.onerror != null) {
           this.onerror(sequence.toString(), deviceId, CONNECTION_ERRORS.ERROR_SYSTEM, null);
         }
       }
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror(sequence.toString(), deviceId, CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -707,7 +713,7 @@ export class ePOSDevice {
       if (eposmsg.serviceId === "OFSC") {
         (this.ofsc as any).notify(eposmsg);
       }
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror(eposmsg.sequence.toString(), eposmsg.serviceId, CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -717,7 +723,7 @@ export class ePOSDevice {
   private procOpenCommBox(eposmsg: ePosDeviceMessage): void {
     try {
       this.commBoxManager.client_opencommbox(eposmsg.data, eposmsg.sequence);
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror(eposmsg.sequence.toString(), "", CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -727,7 +733,7 @@ export class ePOSDevice {
   private procCloseCommBox(eposmsg: ePosDeviceMessage): void {
     try {
       this.commBoxManager.client_closecommbox(eposmsg.data, eposmsg.sequence);
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror(eposmsg.sequence.toString(), "", CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -737,7 +743,7 @@ export class ePOSDevice {
   private procCommBoxData(eposmsg: ePosDeviceMessage): void {
     try {
       this.commBoxManager.executeCommDataCallback(eposmsg.data, eposmsg.sequence);
-    } catch (e) {
+    } catch {
       if (this.onerror != null) {
         this.onerror(eposmsg.sequence.toString(), "", CONNECTION_ERRORS.ERROR_SYSTEM, null);
       }
@@ -749,79 +755,29 @@ export class ePOSDevice {
       if (this.onerror != null) {
         this.onerror(eposmsg.sequence.toString(), eposmsg.deviceId, eposmsg.code, eposmsg.data);
       }
-    } catch (e) {
+    } catch {
       // Ignorar errores en el manejo de errores
     }
   }
 
   private async checkEposPrintService(deviceId: string, deviceType: DeviceType, callback: (result: string) => void): Promise<void> {
     this.cbCheckEposPrintService = callback;
-    
+
     let postUrl = `${this.conection.getOrigin()}/cgi-bin/epos/service.cgi?devid=${deviceId}&timeout=10000`;
     let postData = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>';
-        
+
     if (deviceType === TYPES.TYPE_DISPLAY) {
       postUrl = `${this.conection.getOrigin()}/cgi-bin/eposDisp/service.cgi?devid=${deviceId}&timeout=10000`;
       postData = '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-display xmlns="http://www.epson-pos.com/schemas/2012/09/epos-display"></epos-display></s:Body></s:Envelope>';
     }
 
     try {
-      const response = await this.makeServiceRequest(postUrl, postData);
-      
-      if (this.cbCheckEposPrintService) {
-        if (response.success) {
-          this.cbCheckEposPrintService(RESULT_OK);
-        } else {
-          this.cbCheckEposPrintService(DEVICE_ERRORS.ERROR_DEVICE_NOT_FOUND);
-        }
-        this.cbCheckEposPrintService = null;
-      }
-    } catch (error) {
-      if (this.cbCheckEposPrintService) {
-        this.cbCheckEposPrintService(
-          error === 'timeout' ? 
-            CONNECTION_ERRORS.ERROR_TIMEOUT : 
-            CONNECTION_ERRORS.ERROR_PARAMETER
-        );
-        this.cbCheckEposPrintService = null;
-      }
+      const response = await postPrintRequest(postUrl, postData, 5000);
+      this.cbCheckEposPrintService?.(response.success ? RESULT_OK : DEVICE_ERRORS.ERROR_DEVICE_NOT_FOUND);
+    } catch {
+      this.cbCheckEposPrintService?.(CONNECTION_ERRORS.ERROR_PARAMETER);
+    } finally {
+      this.cbCheckEposPrintService = null;
     }
-  }
-
-  private makeServiceRequest(url: string, data: string): Promise<{ success: boolean }> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', url, true);
-      xhr.timeout = 10000;
-
-      xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
-      xhr.setRequestHeader('If-Modified-Since', 'Thu, 01 Jun 1970 00:00:00 GMT');
-      xhr.setRequestHeader('SOAPAction', '""');
-
-      const timeoutId = setTimeout(() => {
-        xhr.abort();
-        reject('timeout');
-      }, 5000);
-
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState !== 4) return;
-        
-        clearTimeout(timeoutId);
-
-        if (xhr.status === 200 && xhr.responseXML) {
-          const responses = xhr.responseXML.getElementsByTagName('response');
-          if (responses.length > 0) {
-            const success = /^(1|true)$/.test(responses[0].getAttribute('success') || '');
-            resolve({ success });
-          } else {
-            resolve({ success: false });
-          }
-        } else {
-          reject('error');
-        }
-      };
-
-      xhr.send(data);
-    });
   }
 }

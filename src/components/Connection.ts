@@ -104,7 +104,7 @@ export class Connection {
         return;
       }
       this.socket.emit('message', eposmsg.toTransmissionForm());
-    } catch (e) {
+    } catch {
       throw new Error(ERRORS.ERROR_SYSTEM);
     }
   }

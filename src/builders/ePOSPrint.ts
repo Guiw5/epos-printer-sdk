@@ -1,5 +1,6 @@
 import { SendParams } from '../types';
 import { ePOSBuilder } from './ePOSBuilder';
+import { buildSoapEnvelope, postPrintRequest, PrintServiceError } from './httpTransport';
 
 type EventHandler = (event?: any, sq?: number) => void;
 
@@ -31,7 +32,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   battery: number;
   drawerOpenLevel: number;
   intervalid: number | NodeJS.Timeout | null = null;
-  intervalxhr: XMLHttpRequest | null = null;
+  intervalController: AbortController | null = null;
 
   // ASB Constants
   ASB_NO_RESPONSE = 1;
@@ -90,7 +91,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       this.enabled = true;
       this.status = 0;
       this.battery = 0;
-      this.send();
+      void this.send();
     }
   }
 
@@ -100,14 +101,14 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       clearTimeout(this.intervalid);
       this.intervalid = null;
     }
-    if (this.intervalxhr) {
-      this.intervalxhr.abort();
-      this.intervalxhr = null;
+    if (this.intervalController) {
+      this.intervalController.abort();
+      this.intervalController = null;
     }
   }
 
-  getPrintJobStatus(printjobid: string): void {
-    this.send(printjobid);
+  getPrintJobStatus(printjobid: string): Promise<void> {
+    return this.send(printjobid);
   }
 
   getSendParams(params: [string?, string?, string?]): SendParams {
@@ -156,97 +157,59 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
    * Fetch status
    * @param printjobid
    */
-  send(printjobid?: string): void;
-  
+  send(printjobid?: string): Promise<void>;
+
   /**
    * Fetch status for a given printjobid in the given address
    * @param address string
    * @param printjobid string
    */
-  send(address: string, printjobid: string | undefined): void;
-  
+  send(address: string, printjobid: string | undefined): Promise<void>;
+
   /**
    * Send a print request to the printer with the given printerjobid
    * @param request string
    * @param printjobid string
-   * 
+   *
    */
-  send(request: string, printjobid: string | undefined): void;
+  send(request: string, printjobid: string | undefined): Promise<void>;
 
   /**
    * Send a print request to the printer in the given adress with the given printerjobid
-   * @param address 
-   * @param request 
-   * @param printjobid 
+   * @param address
+   * @param request
+   * @param printjobid
    */
-  send(address: string, request: string, printjobid: string | undefined): void;
-  
-  send(...params: [string?, string?, string?]): void {
-    let soap: string;
-    let xhr: XMLHttpRequest;
-    let tid: number | NodeJS.Timeout;
-    let success: boolean;
-    let code: string;
-    let status: number;
-    let battery: number;
-    const epos = this;
+  send(address: string, request: string, printjobid: string | undefined): Promise<void>;
+
+  async send(...params: [string?, string?, string?]): Promise<void> {
     const { address, request, printjobid, isPrintRequest } = this.getSendParams(params);
     const isMonitoring = !isPrintRequest;
+    const soap = buildSoapEnvelope(request, printjobid);
 
-    soap = '<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">';
-    if (printjobid) {
-      soap += 
-      `<s:Header><parameter xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">
-        <printjobid>${printjobid}</printjobid>
-      </parameter></s:Header>`;
-    }
-    soap += `<s:Body>${request}</s:Body></s:Envelope>`;
-
-    xhr = new XMLHttpRequest();
-    xhr.open("POST", address, true);
-    xhr.setRequestHeader("Content-Type", "text/xml; charset=utf-8");
-    xhr.setRequestHeader("If-Modified-Since", "Thu, 01 Jan 1970 00:00:00 GMT");
-    xhr.setRequestHeader("SOAPAction", '""');
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState === 4) {
-        clearTimeout(tid);
-        if (xhr.status === 200 && xhr.responseXML) {
-          const resXML = xhr.responseXML.getElementsByTagName("response");
-          if (resXML.length > 0) {
-            success = /^(1|true)$/.test(resXML[0].getAttribute("success") || "");
-            code = resXML[0].getAttribute("code") || "";
-            status = parseInt(resXML[0].getAttribute("status") || "0");
-            battery = parseInt(resXML[0].getAttribute("battery") || "0");
-            const printjobidXML = xhr.responseXML.getElementsByTagName("printjobid");
-            const printjobidRes = printjobidXML.length > 0 ? printjobidXML[0].textContent || "" : "";
-            if (isPrintRequest) {
-              fireReceiveEvent(epos, success, code, status, battery, printjobidRes);
-            } else {
-              fireStatusEvent(epos, status, battery);
-            }
-          } else if (isPrintRequest) {
-            fireErrorEvent(epos, xhr.status, xhr.responseText);
-          } else {
-            fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
-          }
-          // xhr.status !== 200
-        } else if (isPrintRequest) {
-          fireErrorEvent(epos, xhr.status, xhr.responseText);
-        } else {
-          fireStatusEvent(epos, epos.ASB_NO_RESPONSE, 0);
-        }
-
-        if (isMonitoring) {
-          updateStatus(epos);
-        }
-      };
-
-      tid = setTimeout(() => xhr.abort(), epos.timeout);
-      xhr.send(soap);
-    }
-
+    const controller = new AbortController();
     if (isMonitoring) {
-      epos.intervalxhr = xhr;
+      this.intervalController = controller;
+    }
+
+    try {
+      const res = await postPrintRequest(address, soap, this.timeout, controller.signal);
+      if (isPrintRequest) {
+        fireReceiveEvent(this, res.success, res.code, res.status, res.battery, res.printjobid);
+      } else {
+        fireStatusEvent(this, res.status, res.battery);
+      }
+    } catch (err) {
+      const { status, responseText } = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
+      if (isPrintRequest) {
+        fireErrorEvent(this, status, responseText);
+      } else {
+        fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);
+      }
+    } finally {
+      if (isMonitoring) {
+        updateStatus(this);
+      }
     }
   }
 }
@@ -348,9 +311,9 @@ function updateStatus(epos: ePOSPrint): void {
     epos.intervalid = setTimeout(() => {
       epos.intervalid = null;
       if (epos.enabled) {
-        epos.send();
+        void epos.send();
       }
     }, delay);
   }
-  epos.intervalxhr = null;
+  epos.intervalController = null;
 }

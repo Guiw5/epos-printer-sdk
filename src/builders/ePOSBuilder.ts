@@ -89,12 +89,6 @@ export class ePOSBuilder {
 
   addTextPosition(x: number): this {
     validateRange("x", x, 0, UNSIGNED_SHORT_MAX);
-    this.message += `<text x=${x} />`;
-    return this
-  };
-
-  addTextHPosition(x: number): this {
-    validateRange("x", x, 0, UNSIGNED_SHORT_MAX);
     this.message += `<text x="${x}"/>`;
     return this;
   }
@@ -134,8 +128,8 @@ export class ePOSBuilder {
     validateRange("y", y, 0, UNSIGNED_SHORT_MAX);
     validateRange("width", width, 0, UNSIGNED_SHORT_MAX);
     validateRange("height", height, 0, UNSIGNED_SHORT_MAX);
-    validateRange("halftone", this.halftone, 0, UNSIGNED_BYTE_MAX);
-    validateRange("brightness", this.brightness, 0, UNSIGNED_BYTE_MAX);
+    validateRange("halftone", this.halftone, 0, 2);
+    validateRange("brightness", this.brightness, 0.1, 10);
 
     let attrs = ` x="${x}" y="${y}" width="${width}" height="${height}"`;
     if (color) attrs += ` color="${color}"`;

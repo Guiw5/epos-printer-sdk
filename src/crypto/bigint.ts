@@ -71,7 +71,7 @@ function adapterMathRandom(): number {
     
     try {
       rand = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
-    } catch (e) {
+    } catch {
       throw new Error("GetRandomValues is not supported on your browser");
     }
     return rand;

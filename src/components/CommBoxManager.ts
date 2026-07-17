@@ -59,7 +59,7 @@ export class CommBoxManager {
       }
 
       this.connection?.emit(eposmsg);
-    } catch (error) {
+    } catch {
       callback?.(this.ERROR_PARAMETER_ERROR, eposmsg.sequence);
     }
 
@@ -107,7 +107,7 @@ export class CommBoxManager {
     try {
       const myFunc = commBox[method] as (data: any, sq: number) => void;
       myFunc(data, sq);
-    } catch (error) {
+    } catch {
       throw new Error(`Error al ejecutar ${method} in commbox ${box_id}.`);
     }
   }

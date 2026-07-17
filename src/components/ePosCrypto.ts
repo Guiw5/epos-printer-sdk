@@ -70,7 +70,7 @@ export class ePosCrypto {
       
       const cdata = blowfish.encrypt(enc_req);
       return encode(cdata);
-    } catch (e) {
+    } catch {
       return "";
     }
   }
@@ -89,7 +89,7 @@ export class ePosCrypto {
       };
       
       return blowfish.decrypt(dec_req);
-    } catch (e) {
+    } catch {
       return "";
     }
   }

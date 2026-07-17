@@ -90,14 +90,14 @@ export class CanvasPrint extends ePOSPrint {
    * Print the canvas
    * @param canvas html canvas element
    */
-  print(canvas: HTMLCanvasElement):void;
+  print(canvas: HTMLCanvasElement): Promise<void>;
 
   /**
    * Print the canvas and sets the printjobid
    * @param canvas canvas html element
    * @param printjobid print job id
    */
-  print(canvas: HTMLCanvasElement, printjobid: string):void;
+  print(canvas: HTMLCanvasElement, printjobid: string): Promise<void>;
 
   /**
    * Print the canvas, with the option to cut paper and setting mode
@@ -105,8 +105,8 @@ export class CanvasPrint extends ePOSPrint {
    * @param cut cut paper cmd
    * @param mode mono or gray mode
    */
-  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode):void;
-  
+  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode): Promise<void>;
+
   /**
    * Print the canvas, with the option to cut paper, setting mode and printjobid
    * @param canvas canvas html element
@@ -114,9 +114,9 @@ export class CanvasPrint extends ePOSPrint {
    * @param mode mono or gray mode
    * @param printjobid print job id
    */
-  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode, printjobid: string):void;
+  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode, printjobid: string): Promise<void>;
 
-  print(...params: [HTMLCanvasElement, (string | boolean)?, Mode?, string?]):void {
+  print(...params: [HTMLCanvasElement, (string | boolean)?, Mode?, string?]): Promise<void> {
     const { canvas, cut, mode, printjobid } = this.getPrintParams(...params);
     
     if (!canvas || typeof canvas.getContext !== "function") {
@@ -156,17 +156,17 @@ export class CanvasPrint extends ePOSPrint {
     }
 
     // changed to print the message with the printjobid
-    this.send(this.toString(), printjobid);
+    return this.send(this.toString(), printjobid);
   }
 
-  recover() {
+  recover(): Promise<void> {
     this.force = true;
     this.addRecovery();
-    this.send();
+    return this.send();
   }
 
-  reset() {
+  reset(): Promise<void> {
     this.addReset();
-    this.send();
+    return this.send();
   }
 }

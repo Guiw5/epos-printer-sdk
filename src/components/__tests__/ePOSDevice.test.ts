@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ePOSDevice } from '../ePOSDevice';
 import { RESULTS } from '../../constants/results';
+import { ERRORS } from '../../constants/connection';
 // import { Socket } from 'socket.io-client';
 
-describe('ePOSDevice Integration', () => {
+// Hardware integration tests: exercise real network calls against a printer
+// reachable at PRINTER_ADDRESS. Skipped unless that env var is set so
+// `pnpm test` stays runnable on machines with no printer on the network.
+describe.skipIf(!process.env.PRINTER_ADDRESS)('ePOSDevice Integration', () => {
   let device: ePOSDevice;
 
   beforeEach(() => {
@@ -16,20 +20,21 @@ describe('ePOSDevice Integration', () => {
   });
 
   it('connect to printer web service - success', async () => {
-    const testAddress = process.env.PRINTER_ADDRESS || '192.168.0.3';
+    const testAddress = process.env.PRINTER_ADDRESS!;
     const testPort = parseInt(process.env.PRINTER_PORT || '8043');
-  
+
     const result = await device.connect(testAddress, testPort, { eposprint: true });
     expect(result).toBe(RESULTS.OK);
     expect(device.isConnected()).toBe(true);
   });
 
   it('connect to printer web service - error', async () => {
-    const testAddress = process.env.PRINTER_ADDRESS || '192.168.0.3';
+    // Deliberately unreachable target, distinct from the success case above.
+    const testAddress = 'unreachable.invalid';
     const testPort = parseInt(process.env.PRINTER_PORT || '8043');
 
     const result = await device.connect(testAddress, testPort, { eposprint: true });
-    expect(result).toBe(RESULTS.ERROR);
+    expect(result).toBe(ERRORS.ERROR_PARAMETER);
     expect(device.isConnected()).toBe(false);
   });
 

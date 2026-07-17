@@ -31,7 +31,7 @@ export class DeviceTerminal {
         return;
       }
       this.onshutdown(data);
-    } catch (e) {}
+    } catch { /* ignored */ }
   }
 
   restart(password: string, callback: (data: MsgData) => void): number {
@@ -46,7 +46,7 @@ export class DeviceTerminal {
         return;
       }
       this.onrestart(data);
-    } catch (e) {}
+    } catch { /* ignored */ }
   }
 
   private send(data: MsgData): number {
@@ -55,7 +55,7 @@ export class DeviceTerminal {
     try {
       this.connection?.emit(eposmsg);
       sequence = eposmsg.sequence;
-    } catch (e) {}
+    } catch { /* ignored */ }
     return sequence;
   }
 }

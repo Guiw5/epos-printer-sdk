@@ -7,18 +7,25 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint .",
     "doc": "typedoc --entryPoints src/index.ts --out docs",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:debug": "vitest --inspect-brk --no-file-parallelism --test-timeout=0"
   },
+  "dependencies": {
+    "socket.io-client": "0.8.7"
+  },
   "devDependencies": {
+    "@eslint/js": "^9.11.0",
+    "@types/node": "^22.13.14",
     "@typescript-eslint/eslint-plugin": "^8.6.0",
     "@typescript-eslint/parser": "^8.6.0",
     "eslint": "^9.11.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.30.0",
-    "socket.io-client": "0.8.7",
+    "globals": "^17.7.0",
+    "jsdom": "^29.1.1",
     "typedoc": "^0.26.7",
     "typescript": "^5.5.3",
     "vite": "^6.2.0",

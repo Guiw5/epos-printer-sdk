@@ -270,7 +270,7 @@ const blowfish: Blowfish = (() => {
         let rand: number | undefined;
         try {
           rand = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
-        } catch (e) {
+        } catch {
           console.log("GetRandomValues is not supported on your browser");
         }
         return rand || Math.random();
