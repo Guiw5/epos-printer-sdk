@@ -1,13 +1,47 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + TS</title>
+    <title>@epos/printer — demo</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <h1>@epos/printer</h1>
+      <p class="subtitle">Ejemplo mínimo de uso de <code>EposHttpPrinter</code> — sin sockets, sin callbacks.</p>
+
+      <section class="card">
+        <h2>1. Conexión</h2>
+        <form id="connect-form">
+          <label>
+            Dirección
+            <input id="address" type="text" placeholder="192.168.1.100 o printer.example.com" required />
+          </label>
+          <label>
+            Puerto
+            <input id="port" type="number" value="443" required />
+          </label>
+          <div class="actions">
+            <button id="connect-btn" type="submit">Conectar</button>
+            <button id="disconnect-btn" type="button" disabled>Desconectar</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>2. Impresora</h2>
+        <div class="actions">
+          <button id="print-btn" type="button" disabled>Imprimir recibo de prueba</button>
+          <button id="status-btn" type="button" disabled>Consultar estado</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Log</h2>
+        <pre id="log"></pre>
+      </section>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

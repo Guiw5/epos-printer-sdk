@@ -36,6 +36,9 @@ sdk/                  Original vendor SDK — kept as the reverse-engineering so
     inflate.js            zlib inflate — decompression for gzip-encoded payloads
     crypto.js / epos.js    Original module wiring / entry glue
     socket.io.js           Legacy Socket.IO client bundled inline by Epson
+  manuals/              Official Epson reference docs (downloaded from files.support.epson.com /
+                        download3.ebz.epson.net) — the ground truth this port is checked against,
+                        one level above the vendor JS itself. Not committed (large binaries); see below.
 
 src/                  The TypeScript rewrite (what this package actually ships)
   components/          Core runtime: ePOSDevice, Connection, CommBox(Manager), crypto, message
@@ -70,8 +73,10 @@ The original SDK is 100% callback/event based (`connect(address, port, callback)
 - ✅ `connect()` — now returns a `Promise<string>` instead of taking a result callback.
 - ✅ `probeWebServiceIF()` — promisified HTTP service probing.
 - ✅ **HTTP printing path fully modernized**: `ePOSPrint.send()`, `CanvasPrint.print()/recover()/reset()`, `Printer.send()`, and the status-polling loop (`Printer.startMonitor`, `ePOSPrint.open`) now all run through a single shared `fetch`-based helper ([httpTransport.ts](src/builders/httpTransport.ts)) instead of three separate copies of hand-rolled `XMLHttpRequest` + `onreadystatechange` state machines. This also fixed a real bug along the way — see [Bugs found and fixed](#bugs-found-and-fixed-during-the-port).
-- 🟡 `createDevice()` — internals now use `async`/`await`, but the public contract still resolves the opened device through a `callback` parameter rather than the returned `Promise`. This is a deliberate intermediate step, not the final API.
-- ⬜ Everything else — `CommBox`, `Ofsc`, device event handlers (`onreceive`, `onstatuschange`, `onauthorizesales`, ...) on the WebSocket path are still callback/event-based, matching the original SDK. Low priority for now given the WebSocket transport itself is deprioritized (see above).
+- ✅ **`send()` resolves with the actual response** (`{ success, code, status, battery, printjobid }`) instead of just `Promise<void>`, and rejects on a genuine print failure instead of only firing `onerror`. `onreceive`/`onerror`/`onstatuschange` still fire too, for anyone relying on the event style, but you no longer have to wire them up just to read a result.
+- ✅ **[`EposHttpPrinter`](src/components/EposHttpPrinter.ts)** — the lightweight HTTP-only class from the roadmap now exists as a real, exported, `new`-and-go API: no `ePOSDevice`, no `createDevice()`, no callbacks anywhere in the flow. See [Basic usage](#basic-usage-recommended-eposhttpprinter) below.
+- 🟡 `createDevice()` (on the full `ePOSDevice` API) — internals use `async`/`await`, but the public contract still resolves the opened device through a `callback` parameter rather than the returned `Promise`. Left as-is since `EposHttpPrinter` is now the recommended path and doesn't need it at all.
+- ⬜ Everything else — `CommBox`, `Ofsc`, device event handlers (`onauthorizesales`, ...) on the WebSocket path are still callback/event-based, matching the original SDK. Low priority given the WebSocket transport itself is deprioritized (see above).
 
 **Typing philosophy:** this is a reverse-engineered protocol port, not a greenfield app — types stay simple and pragmatic (`no-explicit-any` is a lint *warning*, not an error) rather than chasing maximal strictness where it wouldn't add real clarity.
 
@@ -92,6 +97,13 @@ Reverse-engineering surfaces real bugs, not just style nits. Found and fixed so 
 - **The socket `'connect'` handler resolved `connect()` prematurely.** The port added a call to fire the connection-result callback as soon as the transport-level socket connected, before the real CONNECT → PUBKEY → ADMININFO handshake completes. The original SDK's handler does no such thing — it only disposes the socket garbage box. Removed, and `connect()`'s socket-path promise is now properly bridged through `registIFAccessResult()` (previously `registCallback()` was called but then commented out, leaving the promise with no way to ever resolve on the socket path).
 - **Toolchain was fully broken**: `tsconfig.json`'s `types` array excluded `node`, so `NodeJS.Timeout` didn't resolve even though `@types/node` was present; `jsdom` was referenced by `vite.config.ts` but never installed, so `vitest` couldn't run a single test; `eslint.config.ts` was written in the legacy `.eslintrc` schema under a flat-config filename, so ESLint 9 couldn't load it at all. All fixed — see `pnpm lint`/`pnpm test`/`tsc --noEmit`.
 - **`socket.io-client` was declared as a `devDependency`** despite being a real runtime import (`ePOSDevice.ts`) — anyone installing this as a library wouldn't have gotten it. Moved to `dependencies`.
+- **`addTextPosition(x)` emitted invalid XML**: `<text x=${x} />` with no quotes around the attribute value. Verified against `sdk/epos/eposbuilder.js`'s `getUShortAttr()`, which always quotes. A second method (`addTextHPosition`, not part of the original SDK) had the correct quoted version sitting right next to it — merged into one correct `addTextPosition`.
+- **`addImage()` validated `halftone`/`brightness` against the wrong numeric range** (0–255, copy-pasted from the width/height checks) instead of the protocol's real range (`halftone`: 0–2, `brightness`: 0.1–10). `brightness: 0` passed validation and produced a corrupted image (divide-by-zero in the gamma calculation) instead of throwing immediately like the original.
+- **`Pattern`/`BarcodeType`/`SymbolType` TypeScript unions didn't match the protocol's real enum values**, verified against the original's validation regexes (`regexPattern`, `regexBarcode`, `regexSymbol` in `eposbuilder.js`): `Pattern` had two literally-wrong values (`'pattern_error'`/`'pattern_paper_end'` instead of `'error'`/`'paper_end'`) and was missing `'pattern_10'`; `BarcodeType` was missing 5 valid values; `SymbolType` was missing 14 of 19 (all MaxiCode, DataMatrix, Aztec, and stacked GS1 DataBar variants). These didn't affect runtime XML generation, but silently blocked well-typed TypeScript callers from using protocol features that do exist.
+- **`socket.io-client@0.8.7` completely broke Vite's dev-server module loading** — esbuild's dependency pre-bundling throws deep inside the package's bundled CJS (`Cannot read properties of undefined (reading 'exports')`), and since `ePOSDevice.ts` statically imported it, the *entire library* failed to load under `pnpm dev` with no visible browser console error, even for pure HTTP usage. Only caught by actually running the demo app in a browser — `vitest` (Node module resolution) and `vite build` (Rollup) never hit it. Fixed by making the import lazy (`await import('socket.io-client')` inside `connectBySocketIo()`, only reached when the socket transport is actually used). Bonus: cut the production bundle's main entry from ~205KB to ~90KB, since socket.io-client now splits into its own chunk instead of always being bundled in.
+- **Self-correction: `addImage()` did *not* need the `x`/`y` attributes it was given.** An earlier pass in this log incorrectly assumed the original SDK's discarded `x`/`y` values (validated but never written to the `<image>` tag) were a vendor bug, and "fixed" it by emitting them. After downloading Epson's official ePOS-Print XML manual (`sdk/manuals/`) and checking the real `<image>` element reference, its only valid attributes are `width`/`height`/`color`/`align`/`mode` — no `x`/`y` at all. The original SDK's behavior was correct; `x`/`y` in `addImage(context, x, y, ...)` only select the source region to read from the canvas via `getImageData()`, not an output position. Reverted.
+- **`CashChanger.client_oncommandreply()`'s hex-decoding never ran in the original SDK**: `if (typeof data.command != "")` is always true (`typeof` never returns `""`), so the intended "decode hex when no command name is set" branch was dead code in the vendor bundle. The TS port's `if (!data.command)` is what the original evidently intended and is kept as-is (not reverted to the vendor's dead branch).
+- **18 of the ~22 device/printer subclasses in the full SDK bundle have no TypeScript port** (`Display`, `Keyboard`, `MSR`, `POSKeyboard`, `Scanner`, `SimpleSerial`, `OtherPeripheral`, `GermanyFiscalElement`, `HybridPrinter(2)`, `ReceiptPrinter`, `SlipPrinter(2)`, `EndorsePrinter(2)`, `MICRReader(2)`, `ValidationPrinter`) — found by diffing every `function X(...)` constructor in `epos.2.27.0.js` against `src/devices/`. None of these apply to a TM-T88V (customer displays, keyboards, MSR readers, hybrid/slip/check/validation printers, fiscal printers — different hardware entirely), so this isn't treated as a gap for this project's scope, just documented honestly.
 
 ## Known limitations
 
@@ -101,8 +113,8 @@ Reverse-engineering surfaces real bugs, not just style nits. Found and fixed so 
 
 ## Roadmap
 
-1. ~~Split out a lightweight HTTP-only layer (`fetch` + `Promise`s, no Socket.IO, no crypto) covering the ePOS-Print web service~~ — done, see [Migration Progress](#migration-progress).
-2. Finish removing callbacks from the public API in favor of `Promise`-returning methods, focused on the HTTP path first.
+1. ~~Split out a lightweight HTTP-only layer (`fetch` + `Promise`s, no Socket.IO, no crypto) covering the ePOS-Print web service~~ — done: [`EposHttpPrinter`](src/components/EposHttpPrinter.ts).
+2. ~~Finish removing callbacks from the public API in favor of `Promise`-returning methods, focused on the HTTP path first~~ — done for `EposHttpPrinter`/`CanvasPrint`/`ePOSPrint`/`Printer`: `send()` resolves with the actual response or throws. `ePOSDevice.createDevice()` (full-SDK, socket-adjacent API) still takes a callback — low priority since `EposHttpPrinter` doesn't need it.
 3. Expand test coverage (builders, devices, crypto round-trips) and full API documentation (`pnpm doc` via TypeDoc).
 4. If/when socket-level encryption becomes a priority again: validate it through systematic testing against the original SDK and real hardware (currently deprioritized).
 
@@ -112,15 +124,59 @@ The end goal: a modern, well-documented, tested rewrite of the ePOS SDK that's t
 
 ```bash
 pnpm install
-pnpm dev          # Vite dev server
-pnpm build        # tsc typecheck + library build (outputs to dist/)
+pnpm dev          # Vite dev server (vanilla demo, see index.html/src/main.ts)
+pnpm build        # typecheck + library build (dist/) + .d.ts declarations
 pnpm test         # vitest
 pnpm test:ui      # vitest with UI
 pnpm lint         # eslint
 pnpm doc          # generate API docs with TypeDoc
 ```
 
-### Basic usage
+## Package layout & tree-shaking
+
+The build produces two entry points, exposed as npm subpaths, so consumers who only need HTTP printing never pull in the socket transport at all:
+
+| Import | Contents | Built size (gzip) |
+|---|---|---|
+| `@epos/printer/http` | `EposHttpPrinter` only | ~6.4 KB |
+| `@epos/printer` | Everything — `ePOSDevice`, `Printer`, `CAT`, `CashChanger`, `DeviceTerminal`, socket transport | ~22 KB (+ ~31 KB for `socket.io-client`, lazy-loaded only if a socket connection is actually made) |
+
+`package.json` sets `"sideEffects": false` and a proper `exports` map, so this works with any modern bundler (Vite, webpack, esbuild, Rollup) without extra config — just `import { EposHttpPrinter } from '@epos/printer/http'`.
+
+## Example apps
+
+- [`index.html` / `src/main.ts`](src/main.ts) — vanilla TS/HTML demo, runs via `pnpm dev`.
+- [`examples/react-app`](examples/react-app) — React integration example: connect/print/status, live status monitoring, barcode + QR/2D-symbol printing, page-mode labels, canvas-image printing with job-status tracking, and multiple simultaneously-connected printers (one `<PrinterCard>` per printer). Depends on the library the way a real consumer would (through the built package, not the source tree). See its own README for how to run it.
+
+### Basic usage (recommended: `EposHttpPrinter`)
+
+For plain HTTP printing (the TM-T88V's actual transport, no sockets, no crypto), `EposHttpPrinter` is a single `new` + fully `Promise`-native API — no callbacks, no `onreceive`/`onerror` wiring, no `ePOSDevice`/`createDevice` needed:
+
+```ts
+import { EposHttpPrinter } from '@epos/printer/http';
+
+const printer = new EposHttpPrinter('192.168.1.100'); // or { port } if not 443/https
+
+await printer.connect(); // throws if the printer isn't reachable
+
+const result = await printer
+  .addTextAlign(printer.ALIGN_CENTER)
+  .addTextSize(2, 2)
+  .addText('Hello, World!\n')
+  .addFeedLine(2)
+  .addCut('feed')
+  .send(); // resolves with { success, code, status, battery, printjobid } — or throws
+
+if (!result.success) {
+  console.error('Print failed:', result.code);
+}
+```
+
+See [src/main.ts](src/main.ts) / [index.html](index.html) for a complete runnable demo (`pnpm dev`).
+
+### Full SDK surface (device management, socket transport)
+
+For device management beyond plain printing (cash drawers, CAT terminals, socket-based crypto) the original callback-shaped `ePOSDevice` API is still there — this path is deprioritized (see above), so its ergonomics haven't been modernized to the same degree:
 
 ```ts
 import { ePOSDevice } from '@epos/printer';
@@ -149,8 +205,24 @@ await epos.createDevice('local_printer', 'type_printer', { crypto: false }, (pri
     .addFeedLine(2)
     .addCut('feed');
 
-  printer.send();
+  void printer.send(); // now resolves with the response too, same as EposHttpPrinter
 });
+```
+
+## Publishing
+
+The package is prepared to publish (metadata, `exports`/`sideEffects`/`.d.ts` output, `LICENSE`) but is **deliberately left as `"private": true`** in `package.json` — that line is the last thing to remove, right before actually running `npm publish`, so nothing goes out by accident. Two things to resolve first, both genuinely the maintainer's call, not something settled here:
+
+1. **Package name/scope.** `@epos/printer` is unclaimed on the npm registry as an exact name, but publishing under the `@epos/...` *scope* requires owning that npm organization — check `npm org ls epos` (or just try `npm publish --dry-run` once logged in; it'll fail clearly if you don't have access to the scope). If you don't own it, either claim it, or rename to an unscoped name (e.g. `epos-tm-printer`) in `package.json`'s `name` field before publishing.
+2. **Epson's SDK license.** This is a TypeScript reimplementation built by directly reading Epson's ePOS SDK (`Copyright (C) Seiko Epson Corporation ... All rights reserved`, per the vendor bundle's own header). The published package (`dist/`) contains none of Epson's original files — only this project's own code — but the protocol/API surface itself is closely derived from their SDK. Whether that's fine to publish publicly depends on Epson's actual SDK license terms, which aren't included in the reference manuals downloaded into `sdk/manuals/` (they're typically bundled separately with the SDK zip download). Worth checking before publishing.
+
+Once both are settled:
+
+```bash
+pnpm build                    # regenerates dist/ + .d.ts from source
+npm pack --dry-run            # lists exactly what would be published, no side effects
+# remove "private": true from package.json, then:
+npm publish                   # add --access public if publishConfig.access isn't picked up
 ```
 
 ## Contributing

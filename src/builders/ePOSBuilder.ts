@@ -123,6 +123,13 @@ export class ePOSBuilder {
   }
 
   // Image methods
+  /**
+   * x/y select the source region to read from the canvas (via
+   * getImageData) — the ePOS-Print XML <image> element itself has no x/y
+   * attribute (confirmed against the official ePOS-Print XML manual: only
+   * width/height/color/align/mode are valid). Position in page mode is set
+   * separately via addPagePosition() before this call.
+   */
   addImage(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, color?: Color, mode?: Mode): this {
     validateRange("x", x, 0, UNSIGNED_SHORT_MAX);
     validateRange("y", y, 0, UNSIGNED_SHORT_MAX);
@@ -131,7 +138,7 @@ export class ePOSBuilder {
     validateRange("halftone", this.halftone, 0, 2);
     validateRange("brightness", this.brightness, 0.1, 10);
 
-    let attrs = ` x="${x}" y="${y}" width="${width}" height="${height}"`;
+    let attrs = ` width="${width}" height="${height}"`;
     if (color) attrs += ` color="${color}"`;
     if (mode) attrs += ` mode="${mode}"`;
 

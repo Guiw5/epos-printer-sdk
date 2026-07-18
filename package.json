@@ -1,11 +1,56 @@
 {
   "name": "@epos/printer",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
+  "description": "Modern TypeScript port of Epson's ePOS SDK, reverse-engineered from the vendor's minified IIFE bundle. Ships EposHttpPrinter — a lightweight, socket-free, fully async/await client for the ePOS-Print HTTP web service (built for the TM-T88V) — plus the full callback-based SDK surface (device management, WebSocket transport) for advanced use.",
+  "keywords": [
+    "epson",
+    "epos",
+    "epos-print",
+    "pos-printer",
+    "thermal-printer",
+    "tm-t88v",
+    "receipt-printer",
+    "typescript"
+  ],
+  "author": "Guido Wagner",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Guiw5/epos-printer-v2.git"
+  },
+  "homepage": "https://github.com/Guiw5/epos-printer-v2#readme",
+  "bugs": {
+    "url": "https://github.com/Guiw5/epos-printer-v2/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "default": "./dist/http.js"
+    }
+  },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.build.json",
     "preview": "vite preview",
     "lint": "eslint .",
     "doc": "typedoc --entryPoints src/index.ts --out docs",

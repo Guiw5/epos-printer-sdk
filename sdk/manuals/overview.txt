@@ -1,0 +1,86 @@
+Epson ePOS SDK for JavaScript
+
+Version      Ver.2.27.0
+
+Uploaded date 2023/10/02
+
+File size    23,641KB
+
+Explanation  1.Note
+              The Epson ePOS SDK for JavaScript is an SDK aimed at development engineers who are
+              developing Web applications for printing on an EPSON TM printer and an EPSON TM-
+              Intelligent printer.
+
+             2.Environment
+              [Support OS]
+              - Microsoft Edge 25 to 108
+              - Mozilla Firefox 12.0 to 108
+              - Google Chrome 21 to 108
+              - Safari 4 to 15.6.1
+              - Safari in iOS 5 to 16.0
+
+              [Support interface]
+              [TM Printer]
+              - Wired LAN
+              - Wireless LAN
+
+              [TM-Intelligent Printer]
+              - Wired LAN
+
+              [TM-T88VI-iHUB]
+              - Wired LAN
+              - Wireless LAN
+
+             3.Changes from the Current Version
+              [New function]
+              - Added new functions for Japanese users
+Epson ePOS SDK for JavaScript Ver.2.27.0
+
+Model
+
+TM-H6000V              TM-T20III          
+
+TM-H6000IV-DT          TM-T70             
+
+TM-L100                TM-T70-i           
+
+TM-L90                 TM-T70II           
+
+TM-m10                 TM-T70II-DT        
+
+TM-m30                 TM-T70II-DT2       
+
+TM-m30II               TM-T82II-i         
+
+TM-m30II-H             TM-T82III          
+
+TM-m30II-NT            TM-T83II-i         
+
+TM-m30II-S             TM-T88IV           
+
+TM-m30II-SL            TM-T88V            
+
+TM-m30III              TM-T88V-i          
+
+TM-m30III-H            TM-T88V-DT         
+
+TM-m50                 TM-T88VI           
+
+TM-m50II               TM-T88VI-iHUB      
+
+TM-m50II-H             TM-T88VII          
+
+TM-P20                 TM-T88VI-DT2       
+
+TM-P20II               TM-T90             
+
+TM-P60II               TM-T90KP           
+
+TM-P80                 TM-T90II           
+
+TM-P80II               TM-U220            
+
+TM-T20II (**7 model)   TM-U220-i          
+
+TM-T20II-i            
+

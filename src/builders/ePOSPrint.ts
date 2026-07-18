@@ -1,6 +1,6 @@
 import { SendParams } from '../types';
 import { ePOSBuilder } from './ePOSBuilder';
-import { buildSoapEnvelope, postPrintRequest, PrintServiceError } from './httpTransport';
+import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type PrintServiceResponse } from './httpTransport';
 
 type EventHandler = (event?: any, sq?: number) => void;
 
@@ -107,7 +107,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     }
   }
 
-  getPrintJobStatus(printjobid: string): Promise<void> {
+  getPrintJobStatus(printjobid: string): Promise<PrintServiceResponse> {
     return this.send(printjobid);
   }
 
@@ -157,14 +157,14 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
    * Fetch status
    * @param printjobid
    */
-  send(printjobid?: string): Promise<void>;
+  send(printjobid?: string): Promise<PrintServiceResponse>;
 
   /**
    * Fetch status for a given printjobid in the given address
    * @param address string
    * @param printjobid string
    */
-  send(address: string, printjobid: string | undefined): Promise<void>;
+  send(address: string, printjobid: string | undefined): Promise<PrintServiceResponse>;
 
   /**
    * Send a print request to the printer with the given printerjobid
@@ -172,7 +172,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
    * @param printjobid string
    *
    */
-  send(request: string, printjobid: string | undefined): Promise<void>;
+  send(request: string, printjobid: string | undefined): Promise<PrintServiceResponse>;
 
   /**
    * Send a print request to the printer in the given adress with the given printerjobid
@@ -180,9 +180,17 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
    * @param request
    * @param printjobid
    */
-  send(address: string, request: string, printjobid: string | undefined): Promise<void>;
+  send(address: string, request: string, printjobid: string | undefined): Promise<PrintServiceResponse>;
 
-  async send(...params: [string?, string?, string?]): Promise<void> {
+  /**
+   * Sends the built request (or, for a status/job query, none) and resolves
+   * with the printer's parsed response directly — no need to wire up
+   * onreceive/onerror first. Rejects (throws) only for an actual print
+   * request that failed; a status/job query that can't reach the printer
+   * resolves with an ASB_NO_RESPONSE status instead, matching the original
+   * SDK's non-throwing status-polling behavior.
+   */
+  async send(...params: [string?, string?, string?]): Promise<PrintServiceResponse> {
     const { address, request, printjobid, isPrintRequest } = this.getSendParams(params);
     const isMonitoring = !isPrintRequest;
     const soap = buildSoapEnvelope(request, printjobid);
@@ -199,13 +207,15 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       } else {
         fireStatusEvent(this, res.status, res.battery);
       }
+      return res;
     } catch (err) {
       const { status, responseText } = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
-      if (isPrintRequest) {
-        fireErrorEvent(this, status, responseText);
-      } else {
+      if (isMonitoring) {
         fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);
+        return { success: false, code: '', status: this.ASB_NO_RESPONSE, battery: 0, printjobid: printjobid ?? '' };
       }
+      fireErrorEvent(this, status, responseText);
+      throw new PrintServiceError(status, responseText);
     } finally {
       if (isMonitoring) {
         updateStatus(this);

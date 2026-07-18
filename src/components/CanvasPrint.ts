@@ -2,6 +2,7 @@ import { CUT_FEED, CUT_NO_FEED } from "../constants/eposbuilder";
 import type { Mode, Color, Alignment, LayoutType, FeedPosition, PrintParams } from "../types";
 import { Connection } from "./Connection";
 import { ePOSPrint } from "../builders/ePOSPrint";
+import type { PrintServiceResponse } from "../builders/httpTransport";
 
 interface Layout {
   width: number;
@@ -90,14 +91,14 @@ export class CanvasPrint extends ePOSPrint {
    * Print the canvas
    * @param canvas html canvas element
    */
-  print(canvas: HTMLCanvasElement): Promise<void>;
+  print(canvas: HTMLCanvasElement): Promise<PrintServiceResponse>;
 
   /**
    * Print the canvas and sets the printjobid
    * @param canvas canvas html element
    * @param printjobid print job id
    */
-  print(canvas: HTMLCanvasElement, printjobid: string): Promise<void>;
+  print(canvas: HTMLCanvasElement, printjobid: string): Promise<PrintServiceResponse>;
 
   /**
    * Print the canvas, with the option to cut paper and setting mode
@@ -105,7 +106,7 @@ export class CanvasPrint extends ePOSPrint {
    * @param cut cut paper cmd
    * @param mode mono or gray mode
    */
-  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode): Promise<void>;
+  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode): Promise<PrintServiceResponse>;
 
   /**
    * Print the canvas, with the option to cut paper, setting mode and printjobid
@@ -114,9 +115,9 @@ export class CanvasPrint extends ePOSPrint {
    * @param mode mono or gray mode
    * @param printjobid print job id
    */
-  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode, printjobid: string): Promise<void>;
+  print(canvas: HTMLCanvasElement, cut: boolean, mode: Mode, printjobid: string): Promise<PrintServiceResponse>;
 
-  print(...params: [HTMLCanvasElement, (string | boolean)?, Mode?, string?]): Promise<void> {
+  print(...params: [HTMLCanvasElement, (string | boolean)?, Mode?, string?]): Promise<PrintServiceResponse> {
     const { canvas, cut, mode, printjobid } = this.getPrintParams(...params);
     
     if (!canvas || typeof canvas.getContext !== "function") {
@@ -159,13 +160,13 @@ export class CanvasPrint extends ePOSPrint {
     return this.send(this.toString(), printjobid);
   }
 
-  recover(): Promise<void> {
+  recover(): Promise<PrintServiceResponse> {
     this.force = true;
     this.addRecovery();
     return this.send();
   }
 
-  reset(): Promise<void> {
+  reset(): Promise<PrintServiceResponse> {
     this.addReset();
     return this.send();
   }

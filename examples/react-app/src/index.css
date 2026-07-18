@@ -1,16 +1,9 @@
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
-  font-weight: 400;
-
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -19,10 +12,56 @@ body {
   min-height: 100vh;
 }
 
-#app {
+.app {
   max-width: 640px;
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
+}
+
+.printer-card {
+  border: 1px solid #555;
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.printer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.printer-card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.remove-btn {
+  background: transparent;
+  border-color: #a33;
+  color: #ff8080;
+  font-size: 0.85em;
+  padding: 0.35em 0.8em;
+}
+
+.card h3 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.25rem;
+  padding: 0.5em 0.7em;
+  border-radius: 6px;
+  border: 1px solid #3a3a3a;
+  background-color: #1a1a1a;
+  color: inherit;
+  font-family: inherit;
+  font-size: 1em;
 }
 
 h1 {
@@ -55,18 +94,8 @@ label {
   font-size: 0.9rem;
 }
 
-label.checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-label.checkbox input {
-  width: auto;
-}
-
-input[type="text"],
-input[type="number"] {
+input[type='text'],
+input[type='number'] {
   display: block;
   width: 100%;
   box-sizing: border-box;
@@ -97,7 +126,6 @@ button {
   background-color: #2a2a2a;
   color: inherit;
   cursor: pointer;
-  transition: border-color 0.2s;
 }
 button:hover:not(:disabled) {
   border-color: #646cff;
@@ -106,12 +134,33 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-button:focus,
-button:focus-visible {
-  outline: 3px auto -webkit-focus-ring-color;
+
+.hint {
+  color: #888;
+  font-size: 0.85rem;
+  margin-top: 0;
 }
 
-#log {
+.status-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+.status-grid dt {
+  color: #888;
+}
+.status-grid dd {
+  margin: 0;
+}
+
+.error {
+  color: #ff6b6b;
+  font-size: 0.9rem;
+}
+
+.log {
   background-color: #1a1a1a;
   border-radius: 6px;
   padding: 0.75rem;
@@ -131,15 +180,19 @@ button:focus-visible {
   .card {
     border-color: #ddd;
   }
-  input[type="text"],
-  input[type="number"] {
+  input[type='text'],
+  input[type='number'],
+  select {
     background-color: #f9f9f9;
     border-color: #ccc;
   }
   button {
     background-color: #f0f0f0;
   }
-  #log {
+  .log {
     background-color: #f4f4f4;
+  }
+  .printer-card {
+    border-color: #ccc;
   }
 }

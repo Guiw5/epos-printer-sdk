@@ -33,7 +33,7 @@ import { CODES, REQUEST } from '../constants/eposmessage';
 import { DeviceElementMap } from './DeviceElementMap';
 import { DeviceElement } from './DeviceElement';
 import type { IDevice } from '../types';
-import io, { Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { postPrintRequest } from '../builders/httpTransport';
 
 interface DeviceOptions {
@@ -127,7 +127,7 @@ export class ePOSDevice {
         // (success or failure), which is what this await is waiting on.
         await new Promise<void>((resolve) => {
           this.conection.registCallback(() => resolve());
-          this.connectBySocketIo(CONNECT_TIMEOUT);
+          void this.connectBySocketIo(CONNECT_TIMEOUT);
         });
         console.log('connected socket', this.conection.isUsablePrintIF());
       }
@@ -268,7 +268,12 @@ export class ePOSDevice {
     return this.commBoxManager;
   }
 
-  private connectBySocketIo(timeout: number): void {
+  private async connectBySocketIo(timeout: number): Promise<void> {
+    // Loaded lazily: socket.io-client is a legacy CJS bundle that only the
+    // socket transport needs. Keeping it out of the module's static import
+    // graph means the HTTP-only path (the recommended one — see README)
+    // never has to load it at all.
+    const { default: io } = await import('socket.io-client');
     const url = this.conection.getSocketIoURL();
     this.socket = io.connect(url, {
       reconnect: false,
@@ -462,7 +467,7 @@ export class ePOSDevice {
               this.gbox.stock(this.socket!);
               this.connectionId = null;
               this.waitRetryConnectId = setTimeout(() => {
-                this.connectBySocketIo(CONNECT_TIMEOUT - mismatchTimeout);
+                void this.connectBySocketIo(CONNECT_TIMEOUT - mismatchTimeout);
               }, 100);
             } else {
               this.conection.registIFAccessResult(
@@ -566,7 +571,7 @@ export class ePOSDevice {
       }
 
       if (this.conection.status(IF_EPOSDEVICE) === RECONNECTING) {
-        this.connectBySocketIo(RECONNECT_TIMEOUT);
+        void this.connectBySocketIo(RECONNECT_TIMEOUT);
       }
 
       this.reconnectTryCount++;

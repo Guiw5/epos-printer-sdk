@@ -3,7 +3,7 @@ import { ePOSBuilder } from "../builders/ePOSBuilder";
 import { MessageFactory } from "../components/MessageFactory";
 import type { ePOSDevice } from "../components/ePOSDevice";
 import { Data } from "../components/ePosDeviceMessage";
-import { buildSoapEnvelope, postPrintRequest, PrintServiceError } from "../builders/httpTransport";
+import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type PrintServiceResponse } from "../builders/httpTransport";
 export class Printer extends CanvasPrint {
   deviceID: string;
   isCrypto: boolean;
@@ -29,15 +29,15 @@ export class Printer extends CanvasPrint {
     return this.message;
   }
 
-  getPrintJobStatus(printjobid: string): Promise<void> {
+  getPrintJobStatus(printjobid: string): Promise<PrintServiceResponse> {
     this.setXmlString("");
     return this.send(printjobid);
   }
 
-  send(printjobid: string): Promise<void>;
-  send(printdata: string, printjobid: string): Promise<void>;
-  send(address: string, printdata: string, printjobid: string): Promise<void>;
-  async send(...params: [string?, string?, string?]): Promise<void> {
+  send(printjobid?: string): Promise<PrintServiceResponse>;
+  send(printdata: string, printjobid: string): Promise<PrintServiceResponse>;
+  send(address: string, printdata: string, printjobid: string): Promise<PrintServiceResponse>;
+  async send(...params: [string?, string?, string?]): Promise<PrintServiceResponse> {
     let address = `${this.connection?.getOrigin()}/cgi-bin/epos/service.cgi?devid=${this.deviceID}&timeout=${this.timeout}`;
     let printdata = this.toString();
     let printjobid;
@@ -57,6 +57,9 @@ export class Printer extends CanvasPrint {
     }
 
     if (!this.ePosDev.getEposprint() && this.connection?.isUsableDeviceIF()) {
+      // The socket transport is fire-and-forget here: the real result
+      // arrives later via client_send/client_onreceive on the device-data
+      // message flow, not synchronously from this call.
       try {
         const data = { type: "print", printdata, printjobid, timeout: this.timeout } as Data;
         const eposmsg = MessageFactory.getDeviceDataMessage(this.deviceID, data, this.isCrypto);
@@ -66,16 +69,18 @@ export class Printer extends CanvasPrint {
       } catch {
         // Ignored: nothing more to do if the socket emit itself throws.
       }
-      return;
+      return { success: true, code: '', status: 0, battery: 0, printjobid: printjobid ?? '' };
     }
 
     const soap = buildSoapEnvelope(printdata, printjobid);
     try {
       const res = await postPrintRequest(address, soap, this.timeout);
       this.fireReceiveEvent(res.success, res.code, res.status, res.battery, res.printjobid, 0);
+      return res;
     } catch (err) {
       const { status, responseText } = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
       this.fireErrorEvent(status, responseText, 0);
+      throw new PrintServiceError(status, responseText);
     }
   }
 

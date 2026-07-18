@@ -28,3 +28,11 @@ dist-ssr
 # Environment variables
 .env
 .env.test
+
+# Official Epson reference manuals (large PDFs, re-downloadable from
+# files.support.epson.com / download3.ebz.epson.net — see README)
+sdk/manuals/*.pdf
+
+# React example app (its own dependency tree)
+examples/react-app/node_modules
+examples/react-app/dist
