@@ -47,3 +47,20 @@ export type DeviceCallbackCode = (code: string) => void;
 export type DeviceCallbackDevice = (deviceObject: IDevice | null, code?: string) => void;
 export type DeviceCallback =  DeviceCallbackCode & DeviceCallbackDevice;
 export type ConnectionCallback = (result: string) => void;
+
+/**
+ * Minimal surface of the legacy socket.io-client@0.8.7 socket that this
+ * library actually touches. Deliberately our own interface: the npm package
+ * predates TypeScript and ships no types, and the internal ambient
+ * declaration (src/types/socket.io-client.d.ts) is not part of the build
+ * output — so nothing in the public .d.ts surface may reference the
+ * 'socket.io-client' module, or consumers' typechecking breaks.
+ */
+export interface LegacySocket {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(event: string, fn: (...args: any[]) => void): LegacySocket;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  emit(event: string, ...args: any[]): unknown;
+  disconnect(): LegacySocket;
+  removeAllListeners(event: string): LegacySocket;
+}

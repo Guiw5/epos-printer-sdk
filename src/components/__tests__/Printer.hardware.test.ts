@@ -30,15 +30,7 @@ describe.skipIf(!process.env.PRINTER_ADDRESS)('Printer HTTP transport (hardware)
     const connectResult = await device.connect(address, port, { eposprint: true });
     expect(connectResult).toBe(RESULT_OK);
 
-    const printer = await new Promise<Printer>((resolve, reject) => {
-      device.createDevice('local_printer', 'type_printer', {}, (deviceObject, code) => {
-        if (!deviceObject) {
-          reject(new Error(`createDevice failed: ${code}`));
-          return;
-        }
-        resolve(deviceObject as Printer);
-      });
-    });
+    const printer = (await device.createDevice('local_printer', 'type_printer')) as Printer;
 
     const received = await new Promise<{ success: boolean; code: string }>((resolve, reject) => {
       printer.onreceive = (event) => resolve(event);

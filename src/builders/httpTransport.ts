@@ -63,18 +63,24 @@ export async function postPrintRequest(
       throw new PrintServiceError(res.status, text);
     }
 
-    const xml = new DOMParser().parseFromString(text, 'text/xml');
-    const response = xml.getElementsByTagName('response')[0];
-    if (!response) {
+    // Regex parsing on purpose — no DOMParser: that's a browser-only global,
+    // and this transport must run identically in Node (SSR, scripts, API
+    // routes). The vendor itself parses this response with the same regexes
+    // in its service-probe path (eposdevice.js checkEposPrintService).
+    const responseTag = /<response\b[^>]*/.exec(text)?.[0];
+    if (!responseTag) {
       throw new PrintServiceError(res.status, text);
     }
 
+    const attr = (name: string): string | null =>
+      new RegExp(`${name}\\s*=\\s*"([^"]*)"`).exec(responseTag)?.[1].trim() ?? null;
+
     return {
-      success: /^(1|true)$/.test(response.getAttribute('success') ?? ''),
-      code: response.getAttribute('code') ?? '',
-      status: parseInt(response.getAttribute('status') ?? '0', 10),
-      battery: parseInt(response.getAttribute('battery') ?? '0', 10),
-      printjobid: xml.getElementsByTagName('printjobid')[0]?.textContent ?? '',
+      success: /^(1|true)$/.test(attr('success') ?? ''),
+      code: attr('code') ?? '',
+      status: parseInt(attr('status') ?? '0', 10) || 0,
+      battery: parseInt(attr('battery') ?? '0', 10) || 0,
+      printjobid: /<printjobid>([^<]*)<\/printjobid>/.exec(text)?.[1] ?? '',
     };
   } finally {
     clearTimeout(timeoutId);

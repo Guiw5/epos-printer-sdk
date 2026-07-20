@@ -17,5 +17,9 @@ export const REQUEST = {
 export const CODES = {
   SHARED_KEY_MISMATCH_ERROR: 'SHARED_KEY_MISMATCH_ERROR',
   PARAM_ERROR: 'PARAM_ERROR',
-  RESULT_OK: 'RESULT_OK',
+  // The wire value is literally "OK" (vendor: `this.RESULT_OK = "OK"`, and
+  // the ePOS-Device XML manual's response tables show <code>OK</code>). It
+  // was once 'RESULT_OK' here, which made procAdminInfo/procReconnect/
+  // procOpenDevice reject every real success response from the hardware.
+  RESULT_OK: 'OK',
 };

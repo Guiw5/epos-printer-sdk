@@ -7,7 +7,7 @@ import { DeviceSelector } from './DeviceSelector';
 import { Ofsc } from './Ofsc';
 import { CookieIO } from './CookieIO';
 import { SocketGarbageBox } from './SocketGarbageBox';
-import type { DeviceCallback, DeviceType } from '../types';
+import type { DeviceCallback, DeviceType, LegacySocket } from '../types';
 import { 
   RESULTS,
   ERRORS as CONNECTION_ERRORS,
@@ -33,7 +33,7 @@ import { CODES, REQUEST } from '../constants/eposmessage';
 import { DeviceElementMap } from './DeviceElementMap';
 import { DeviceElement } from './DeviceElement';
 import type { IDevice } from '../types';
-import type { Socket } from 'socket.io-client';
+
 import { postPrintRequest } from '../builders/httpTransport';
 
 interface DeviceOptions {
@@ -49,7 +49,7 @@ interface ConnectionOptions {
 
 export class ePOSDevice {
   // Private members
-  private socket: Socket | null = null;
+  private socket: LegacySocket | null = null;
   private connectionId: string | null = null;
   private reconnectTimerId: number | NodeJS.Timeout = 0;
   private reconnectTryCount = 0;
@@ -127,7 +127,12 @@ export class ePOSDevice {
         // (success or failure), which is what this await is waiting on.
         await new Promise<void>((resolve) => {
           this.conection.registCallback(() => resolve());
-          void this.connectBySocketIo(CONNECT_TIMEOUT);
+          // If the socket transport can't even start (e.g. the legacy
+          // socket.io-client fails to load in this environment), degrade the
+          // same way a socket error does: probe the HTTP service and fall
+          // back to it. Without this, a rejection here would leave connect()
+          // hanging forever — registIFAccessResult would never fire.
+          this.connectBySocketIo(CONNECT_TIMEOUT).catch(() => this.handleSocketError());
         });
         console.log('connected socket', this.conection.isUsablePrintIF());
       }
@@ -154,7 +159,28 @@ export class ePOSDevice {
     this.cleanup();
   }
 
-  async createDevice(deviceId: string, deviceType: DeviceType, options: DeviceOptions, callback: DeviceCallback): Promise<void> {
+  /**
+   * Opens a device and resolves with it directly — no callback wiring
+   * required. On the socket transport the OPENDEVICE response arrives later
+   * as its own message (see procOpenDevice), so this wraps the legacy
+   * callback-style flow in a Promise rather than duplicating it; pass a
+   * `callback` too if you still need the raw (device, code) shape.
+   */
+  async createDevice(deviceId: string, deviceType: DeviceType, options: DeviceOptions = {}, callback?: DeviceCallback): Promise<IDevice> {
+    return new Promise<IDevice>((resolve, reject) => {
+      const settle = ((deviceObject: IDevice | null, code?: string) => {
+        callback?.(deviceObject, code);
+        if (deviceObject) {
+          resolve(deviceObject);
+        } else {
+          reject(new Error(code || DEVICE_ERRORS.ERROR_DEVICE_OPEN));
+        }
+      }) as DeviceCallback;
+      void this.createDeviceCallback(deviceId, deviceType, options, settle);
+    });
+  }
+
+  private async createDeviceCallback(deviceId: string, deviceType: DeviceType, options: DeviceOptions, callback: DeviceCallback): Promise<void> {
     try {
       if (!this.isConnected()) {
         throw new Error(CONNECTION_ERRORS.ERROR_SYSTEM);
@@ -364,7 +390,7 @@ export class ePOSDevice {
           this.procReconnect(eposmsg);
           break;
         case REQUEST.DISCONNECT:
-          this.procDisconnect(eposmsg);
+          this.procDisconnect();
           break;
         case REQUEST.OPENDEVICE:
           this.procOpenDevice(eposmsg);
@@ -516,18 +542,15 @@ export class ePOSDevice {
     }
   };
 
-  private procDisconnect(eposmsg: ePosDeviceMessage): void {
-    // this.disconnect();
-    console.log("procDisconnect", eposmsg);
-    if (eposmsg.code == CODES.RESULT_OK) {
-      this.conection.changeStatus(IF_EPOSDEVICE, DISCONNECT);
-      if (this.ondisconnect != null) {
-        this.ondisconnect()
-      }
-    } else {
-      this.cleanup()
-    }
-  }
+  // Intentional no-op, matching the vendor SDK exactly (see eposdevice.js's
+  // own `procDisconnect: function(eposmsg) {}`). The <disconnect> message is
+  // purely a request/ack pair for the client's own disconnect() call, which
+  // already runs cleanup() synchronously before any ack can arrive — so by
+  // the time this fires, there's nothing left to react to. Per the official
+  // ePOS-Device XML manual, real disconnection notifications are meant to
+  // go through <reconnect> exhaustion (cleanup() firing ondisconnect), not
+  // through this message.
+  private procDisconnect(): void {}
 
   private procAdminInfo(eposmsg: ePosDeviceMessage): void {
     if (this.eposprint) {

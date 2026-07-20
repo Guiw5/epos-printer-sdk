@@ -1,4 +1,4 @@
-import type { Socket } from "socket.io-client";
+import type { LegacySocket } from "../types";
 import { ERRORS, IF_EPOSPRINT, IF_EPOSDISPLAY, RESULTS, IF_EPOSDEVICE, IF_ALL, CONNECT } from "../constants/connection";
 import type { ePosDeviceMessage } from "./ePosDeviceMessage";
 
@@ -8,7 +8,7 @@ export class Connection {
   // public ERROR_TIMEOUT: string = 'ERROR_TIMEOUT';
   // public ERROR_PARAMETER: string = 'ERROR_PARAMETER';
   // public ERROR_SYSTEM: string = 'SYSTEM_ERROR';
-  private socket: Socket | null = null;
+  private socket: LegacySocket | null = null;
   private address: string = '';
   private protocol: string = '';
   private port: number = 0;
@@ -35,7 +35,13 @@ export class Connection {
   }
 
   public async probe(url: string, postdata: string): Promise<string> {
-    return new Promise((resolve, reject) => {
+    // Never rejects — matches the vendor SDK's callback-style probe(), which
+    // always calls back with a result code (OK/ERROR_PARAMETER/ERROR_TIMEOUT)
+    // regardless of outcome. Callers like probeWebServiceIF() and
+    // handleSocketError() depend on that to always proceed to
+    // registIFAccessResult(); a reject here left connect() hanging forever
+    // whenever the probe failed (and left an unhandled rejection besides).
+    return new Promise((resolve) => {
       let xhr: XMLHttpRequest | null = null;
       let tid: ReturnType<typeof setTimeout>;
 
@@ -52,7 +58,7 @@ export class Connection {
               resolve(RESULTS.OK);
             } else {
               console.error('probe error', xhr?.status);
-              reject(ERRORS.ERROR_PARAMETER);
+              resolve(ERRORS.ERROR_PARAMETER);
             }
           }
         };
@@ -64,11 +70,18 @@ export class Connection {
         xhr.send(postdata);
       } catch (e) {
         console.error(e);
-        reject(ERRORS.ERROR_PARAMETER);
+        resolve(ERRORS.ERROR_PARAMETER);
       }
     });
   }
 
+  // Known gap vs. the vendor SDK (deferred — TM-T88V printer is the only
+  // target device for this release, not ePOS-Display): the original always
+  // probes both the print and display service endpoints in parallel. Here
+  // the display probe is opt-in via `display`, and no caller currently
+  // passes it, so isUsableDisplayIF() can never become true through this
+  // path. Restore the always-both-in-parallel behavior if type_display
+  // support is ever prioritized.
   public async probeWebServiceIF({ display }: { display?: boolean } = {}): Promise<number> {
     console.log('probeWebServiceIF', this.getOrigin());
     
@@ -89,7 +102,7 @@ export class Connection {
   
   }
 
-  public setSocket(socket: Socket): void {
+  public setSocket(socket: LegacySocket): void {
     this.socket = socket;
   }
 

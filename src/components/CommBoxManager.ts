@@ -31,41 +31,61 @@ export class CommBoxManager {
     return this.connection;
   }
 
-  openCommBox(boxID: string, option?: { memberID?: string }, callback?: (commBox: CommBox | null, error: string, seq: number) => void): number {
+  async openCommBox(boxID: string, option?: { memberID?: string }): Promise<CommBox> {
     const memberID = option?.memberID ?? "";
     const data = { box_id: boxID, member_id: memberID } as MsgData;
     const eposmsg = MessageFactory.getOpenCommBoxMessage(data);
 
-    if (!this.connection?.isUsableDeviceIF) {
-      callback?.(null, this.ERROR_SYSTEM_ERROR, eposmsg.sequence);
-      return eposmsg.sequence;
-    }
-
-    this.connection.emit(eposmsg);
-    if (callback) this.callbackInfo.addCallback(callback, eposmsg.sequence);
-
-    return eposmsg.sequence;
-  }
-
-  closeCommBox(boxObj: CommBox, callback?: (error: string, seq: number) => void): number {
-      const boxID = boxObj.getBoxId();
-      const data = { box_id: boxID } as MsgData;
-      const eposmsg = MessageFactory.getCloseCommBoxMessage(data);
-
-    try {
-        if (!this.isOpened(boxID)) {
-        callback?.(this.ERROR_NOT_OPENED, eposmsg.sequence);
-        return eposmsg.sequence;
+    return new Promise<CommBox>((resolve, reject) => {
+      if (!this.connection?.isUsableDeviceIF()) {
+        reject(new Error(this.ERROR_SYSTEM_ERROR));
+        return;
       }
 
-      this.connection?.emit(eposmsg);
-    } catch {
-      callback?.(this.ERROR_PARAMETER_ERROR, eposmsg.sequence);
-    }
+      this.callbackInfo.addCallback((commBox: CommBox | null, error: string) => {
+        if (commBox) {
+          resolve(commBox);
+        } else if (error === this.RES_OK) {
+          // Server said OK but the box was already in our local list, so
+          // client_opencommbox handed back null (vendor behavior: it never
+          // returns the existing instance). Surface the vendor's own
+          // constant for this instead of a nonsensical Error("OK").
+          reject(new Error(this.ERROR_ALREADY_OPENED));
+        } else {
+          reject(new Error(error));
+        }
+      }, eposmsg.sequence);
 
-    if (callback) this.callbackInfo.addCallback(callback, eposmsg.sequence);
+      this.connection.emit(eposmsg);
+    });
+  }
 
-    return eposmsg.sequence;
+  async closeCommBox(boxObj: CommBox): Promise<void> {
+    const boxID = boxObj.getBoxId();
+    const data = { box_id: boxID } as MsgData;
+    const eposmsg = MessageFactory.getCloseCommBoxMessage(data);
+
+    return new Promise<void>((resolve, reject) => {
+      if (!this.isOpened(boxID)) {
+        reject(new Error(this.ERROR_NOT_OPENED));
+        return;
+      }
+
+      try {
+        this.connection?.emit(eposmsg);
+      } catch {
+        reject(new Error(this.ERROR_PARAMETER_ERROR));
+        return;
+      }
+
+      this.callbackInfo.addCallback((code: string) => {
+        if (code === this.RES_OK) {
+          resolve();
+        } else {
+          reject(new Error(code));
+        }
+      }, eposmsg.sequence);
+    });
   }
   client_opencommbox(data: Data, sq: number): void {
     const { box_id, code } = data as MsgData;
@@ -105,8 +125,10 @@ export class CommBoxManager {
     }
 
     try {
-      const myFunc = commBox[method] as (data: any, sq: number) => void;
-      myFunc(data, sq);
+      // .call(commBox, ...) — invoking the detached function would lose
+      // `this`, breaking this.callbackInfo inside client_send & co. (the
+      // vendor's eval("commBoxObj.client_x(...)") kept the receiver).
+      (commBox[method] as (data: any, sq: number) => void).call(commBox, data, sq);
     } catch {
       throw new Error(`Error al ejecutar ${method} in commbox ${box_id}.`);
     }

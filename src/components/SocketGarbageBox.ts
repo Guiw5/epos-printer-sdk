@@ -1,13 +1,13 @@
-import { Socket } from "socket.io-client";
+import type { LegacySocket } from "../types";
 
 export class SocketGarbageBox {
-  private box: Socket[] = [];
+  private box: LegacySocket[] = [];
 
   constructor() {
     this.box = [];
   }
 
-  stock(socket: Socket): void {
+  stock(socket: LegacySocket): void {
     if (!socket) {
       return;
     }

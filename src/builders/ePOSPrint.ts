@@ -115,13 +115,25 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     let address: string = this.address;
     let request: string = new ePOSBuilder().toString();
     let printjobid: string = '';
-    
-    const isPrintRequest = Boolean(params.find(p => p && /^<epos/.test(p)));
+
+    let isPrintRequest = Boolean(params.find(p => p && /^<epos/.test(p)));
 
     const len = params.length;
     const [first] = params;
     switch (len) {
-      case 0: break;
+      case 0: {
+        // No explicit request/printjobid — if something was built via
+        // chained add*() calls (the EposHttpPrinter pattern: build, then
+        // send()), send that instead of silently sending an empty job.
+        // Untouched builder state is empty either way, so plain status
+        // pings (send() with nothing built, e.g. open()'s polling loop)
+        // behave exactly as before.
+        if (this.message) {
+          request = this.toString();
+          isPrintRequest = true;
+        }
+        break;
+      }
       case 1: {
         if (/^<epos/.test(first!)) {
           // sending job

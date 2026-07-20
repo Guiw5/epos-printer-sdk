@@ -75,8 +75,9 @@ The original SDK is 100% callback/event based (`connect(address, port, callback)
 - ✅ **HTTP printing path fully modernized**: `ePOSPrint.send()`, `CanvasPrint.print()/recover()/reset()`, `Printer.send()`, and the status-polling loop (`Printer.startMonitor`, `ePOSPrint.open`) now all run through a single shared `fetch`-based helper ([httpTransport.ts](src/builders/httpTransport.ts)) instead of three separate copies of hand-rolled `XMLHttpRequest` + `onreadystatechange` state machines. This also fixed a real bug along the way — see [Bugs found and fixed](#bugs-found-and-fixed-during-the-port).
 - ✅ **`send()` resolves with the actual response** (`{ success, code, status, battery, printjobid }`) instead of just `Promise<void>`, and rejects on a genuine print failure instead of only firing `onerror`. `onreceive`/`onerror`/`onstatuschange` still fire too, for anyone relying on the event style, but you no longer have to wire them up just to read a result.
 - ✅ **[`EposHttpPrinter`](src/components/EposHttpPrinter.ts)** — the lightweight HTTP-only class from the roadmap now exists as a real, exported, `new`-and-go API: no `ePOSDevice`, no `createDevice()`, no callbacks anywhere in the flow. See [Basic usage](#basic-usage-recommended-eposhttpprinter) below.
-- 🟡 `createDevice()` (on the full `ePOSDevice` API) — internals use `async`/`await`, but the public contract still resolves the opened device through a `callback` parameter rather than the returned `Promise`. Left as-is since `EposHttpPrinter` is now the recommended path and doesn't need it at all.
-- ⬜ Everything else — `CommBox`, `Ofsc`, device event handlers (`onauthorizesales`, ...) on the WebSocket path are still callback/event-based, matching the original SDK. Low priority given the WebSocket transport itself is deprioritized (see above).
+- ✅ `createDevice()` — now resolves with the opened device (`Promise<IDevice>`) and rejects with the vendor's error code on failure. The legacy `(device, code)` callback is still accepted as an optional last argument for backwards compatibility, but no longer required.
+- ✅ `CommBox` / `CommBoxManager` — `openCommBox()` resolves with the `CommBox`, `closeCommBox()` resolves on OK, `CommBox.send()` resolves with the delivered-count and `getCommHistory()` with the history list; all reject with the vendor's error codes (`NOT_OPENED`, `ALREADY_OPENED`, ...). `onreceive` stays as an event callback — incoming messages are genuinely push-based.
+- ⬜ Everything else — `Ofsc` and device event handlers (`onauthorizesales`, ...) on the WebSocket path are still callback/event-based, matching the original SDK. Low priority given the WebSocket transport itself is deprioritized (see above).
 
 **Typing philosophy:** this is a reverse-engineered protocol port, not a greenfield app — types stay simple and pragmatic (`no-explicit-any` is a lint *warning*, not an error) rather than chasing maximal strictness where it wouldn't add real clarity.
 
@@ -103,18 +104,19 @@ Reverse-engineering surfaces real bugs, not just style nits. Found and fixed so 
 - **`socket.io-client@0.8.7` completely broke Vite's dev-server module loading** — esbuild's dependency pre-bundling throws deep inside the package's bundled CJS (`Cannot read properties of undefined (reading 'exports')`), and since `ePOSDevice.ts` statically imported it, the *entire library* failed to load under `pnpm dev` with no visible browser console error, even for pure HTTP usage. Only caught by actually running the demo app in a browser — `vitest` (Node module resolution) and `vite build` (Rollup) never hit it. Fixed by making the import lazy (`await import('socket.io-client')` inside `connectBySocketIo()`, only reached when the socket transport is actually used). Bonus: cut the production bundle's main entry from ~205KB to ~90KB, since socket.io-client now splits into its own chunk instead of always being bundled in.
 - **Self-correction: `addImage()` did *not* need the `x`/`y` attributes it was given.** An earlier pass in this log incorrectly assumed the original SDK's discarded `x`/`y` values (validated but never written to the `<image>` tag) were a vendor bug, and "fixed" it by emitting them. After downloading Epson's official ePOS-Print XML manual (`sdk/manuals/`) and checking the real `<image>` element reference, its only valid attributes are `width`/`height`/`color`/`align`/`mode` — no `x`/`y` at all. The original SDK's behavior was correct; `x`/`y` in `addImage(context, x, y, ...)` only select the source region to read from the canvas via `getImageData()`, not an output position. Reverted.
 - **`CashChanger.client_oncommandreply()`'s hex-decoding never ran in the original SDK**: `if (typeof data.command != "")` is always true (`typeof` never returns `""`), so the intended "decode hex when no command name is set" branch was dead code in the vendor bundle. The TS port's `if (!data.command)` is what the original evidently intended and is kept as-is (not reverted to the vendor's dead branch).
+- **The HTTP transport's response parsing used `DOMParser`, a browser-only global** — under Node (SSR, API routes, scripts) every request failed and, worse, the status-query path masked the crash as a generic `ASB_NO_RESPONSE`. Replaced with the same regex-based attribute extraction the vendor itself uses in its service-probe path (`checkEposPrintService`), making `@epos/printer/http` fully universal (browser + Node). Caught by running a real end-to-end print from a plain Node script — unit tests run under jsdom, which quietly provides `DOMParser`.
 - **18 of the ~22 device/printer subclasses in the full SDK bundle have no TypeScript port** (`Display`, `Keyboard`, `MSR`, `POSKeyboard`, `Scanner`, `SimpleSerial`, `OtherPeripheral`, `GermanyFiscalElement`, `HybridPrinter(2)`, `ReceiptPrinter`, `SlipPrinter(2)`, `EndorsePrinter(2)`, `MICRReader(2)`, `ValidationPrinter`) — found by diffing every `function X(...)` constructor in `epos.2.27.0.js` against `src/devices/`. None of these apply to a TM-T88V (customer displays, keyboards, MSR readers, hybrid/slip/check/validation printers, fiscal printers — different hardware entirely), so this isn't treated as a gap for this project's scope, just documented honestly.
 
 ## Known limitations
 
 - Encrypted socket communication (`crypto: true`) has not been confirmed working against real hardware, and isn't currently being pursued — the WebSocket transport is deprioritized in favor of HTTP (see top of this doc).
-- The callback-to-Promise migration is partial (see [Migration Progress](#migration-progress)), and now concentrated on the HTTP path.
+- The callback-to-Promise migration covers every request/response API (`connect`, `createDevice`, `send`, `CommBox`, ...); what remains callback-based is `Ofsc` and the genuinely push-based device events (see [Migration Progress](#migration-progress)).
 - `src/printer/` is an in-progress refactor of the printer status-diffing logic and isn't wired into the public API yet.
 
 ## Roadmap
 
 1. ~~Split out a lightweight HTTP-only layer (`fetch` + `Promise`s, no Socket.IO, no crypto) covering the ePOS-Print web service~~ — done: [`EposHttpPrinter`](src/components/EposHttpPrinter.ts).
-2. ~~Finish removing callbacks from the public API in favor of `Promise`-returning methods, focused on the HTTP path first~~ — done for `EposHttpPrinter`/`CanvasPrint`/`ePOSPrint`/`Printer`: `send()` resolves with the actual response or throws. `ePOSDevice.createDevice()` (full-SDK, socket-adjacent API) still takes a callback — low priority since `EposHttpPrinter` doesn't need it.
+2. ~~Finish removing callbacks from the public API in favor of `Promise`-returning methods~~ — done: `EposHttpPrinter`/`CanvasPrint`/`ePOSPrint`/`Printer` (`send()` resolves with the actual response or throws), plus `ePOSDevice.createDevice()` and the `CommBox`/`CommBoxManager` request/response methods. Remaining callbacks are the genuinely push-based events (`onreceive`, `onstatuschange`, ...) and `Ofsc`.
 3. Expand test coverage (builders, devices, crypto round-trips) and full API documentation (`pnpm doc` via TypeDoc).
 4. If/when socket-level encryption becomes a priority again: validate it through systematic testing against the original SDK and real hardware (currently deprioritized).
 
@@ -176,37 +178,33 @@ See [src/main.ts](src/main.ts) / [index.html](index.html) for a complete runnabl
 
 ### Full SDK surface (device management, socket transport)
 
-For device management beyond plain printing (cash drawers, CAT terminals, socket-based crypto) the original callback-shaped `ePOSDevice` API is still there — this path is deprioritized (see above), so its ergonomics haven't been modernized to the same degree:
+For device management beyond plain printing (cash drawers, CAT terminals, socket-based crypto) the full `ePOSDevice` API is there, now Promise-based end to end — this path is still deprioritized (see above), but its request/response surface has been modernized:
 
 ```ts
 import { ePOSDevice } from '@epos/printer';
 
 const epos = new ePOSDevice();
 
-// connect() is already Promise-based
+// connect() is Promise-based
 const result = await epos.connect('192.168.1.100', 8008);
 
 if (result !== 'OK') {
   throw new Error(`Could not connect: ${result}`);
 }
 
-// createDevice() is partially promisified — the opened device still
-// arrives through the callback, not the returned Promise (see Migration Progress)
-await epos.createDevice('local_printer', 'type_printer', { crypto: false }, (printer, code) => {
-  if (!printer) {
-    console.error('Could not open printer:', code);
-    return;
-  }
+// createDevice() resolves with the opened device, or rejects with the
+// vendor's error code (DEVICE_NOT_FOUND, DEVICE_IN_USE, ...). The legacy
+// (device, code) callback is still accepted as an optional 4th argument.
+const printer = await epos.createDevice('local_printer', 'type_printer');
 
-  printer
-    .addTextAlign(printer.ALIGN_CENTER)
-    .addTextSize(2, 2)
-    .addText('Hello, World!\n')
-    .addFeedLine(2)
-    .addCut('feed');
+printer
+  .addTextAlign(printer.ALIGN_CENTER)
+  .addTextSize(2, 2)
+  .addText('Hello, World!\n')
+  .addFeedLine(2)
+  .addCut('feed');
 
-  void printer.send(); // now resolves with the response too, same as EposHttpPrinter
-});
+await printer.send(); // resolves with the response, same as EposHttpPrinter
 ```
 
 ## Publishing

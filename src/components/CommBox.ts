@@ -2,6 +2,7 @@ import { CommBoxManager } from "./CommBoxManager";
 import { CallbackInfo } from "./CallbackInfo";
 import { MessageFactory } from "./MessageFactory";
 import { Connection } from "./Connection";
+import { MsgData } from "./ePosDeviceMessage";
 
 export class CommBox {
   readonly ERROR_OK = "OK";
@@ -21,29 +22,49 @@ export class CommBox {
     this.connection = this.commBoxManager.getConnection();
   }
 
-  getCommHistory(option?: { allHistory?: boolean }, callback?: (error: string | null, historyList?: any, seq?: number) => void): number {
+  async getCommHistory(option?: { allHistory?: boolean }): Promise<any> {
     const allHistory = option?.allHistory ?? false;
-    const data = { type: "getcommhistory", box_id: this.boxID, all_history: allHistory };
-    return this.emit(data, callback);
-  }
-
-  send(message: string, memberID: string, callback?: (error: string | null, count?: number, seq?: number) => void): number {
-    const data = { type: "send", box_id: this.boxID, message, member_id: memberID };
-    return this.emit(data, callback);
-  }
-
-  emit(data: any, callback?: (error: string | null, historyList?: any, seq?: number) => void): number {
+    const data = { type: "getcommhistory", box_id: this.boxID, all_history: allHistory } as unknown as MsgData;
     const eposmsg = MessageFactory.getCommBoxDataMessage(data);
 
-    if (!this.commBoxManager.isOpened(this.boxID)) {
-      callback?.(this.ERROR_NOT_OPENED, null, eposmsg.sequence);
-      return eposmsg.sequence;
-    }
+    return new Promise((resolve, reject) => {
+      if (!this.commBoxManager.isOpened(this.boxID)) {
+        reject(new Error(this.ERROR_NOT_OPENED));
+        return;
+      }
 
-    if (callback) this.callbackInfo.addCallback(callback, eposmsg.sequence);    
+      this.callbackInfo.addCallback((code: string, historyList: any) => {
+        if (code === this.ERROR_OK) {
+          resolve(historyList);
+        } else {
+          reject(new Error(code));
+        }
+      }, eposmsg.sequence);
 
-    this.connection!.emit(eposmsg);
-    return eposmsg.sequence;
+      this.connection!.emit(eposmsg);
+    });
+  }
+
+  async send(message: string, memberID: string): Promise<number> {
+    const data = { type: "send", box_id: this.boxID, message, member_id: memberID } as unknown as MsgData;
+    const eposmsg = MessageFactory.getCommBoxDataMessage(data);
+
+    return new Promise((resolve, reject) => {
+      if (!this.commBoxManager.isOpened(this.boxID)) {
+        reject(new Error(this.ERROR_NOT_OPENED));
+        return;
+      }
+
+      this.callbackInfo.addCallback((code: string, count: number) => {
+        if (code === this.ERROR_OK) {
+          resolve(count);
+        } else {
+          reject(new Error(code));
+        }
+      }, eposmsg.sequence);
+
+      this.connection!.emit(eposmsg);
+    });
   }
 
   client_getcommhistory(data: { code: string; history_list: any }, sq: number): void {
