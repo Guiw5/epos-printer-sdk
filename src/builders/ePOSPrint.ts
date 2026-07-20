@@ -131,6 +131,11 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
         if (this.message) {
           request = this.toString();
           isPrintRequest = true;
+          // Consume the buffer: send() takes ownership of whatever was
+          // built (vendor Printer.send() does the same via setXmlString("")
+          // on both transports). Without this, the next chained
+          // add*().send() would silently re-print everything sent before.
+          this.message = '';
         }
         break;
       }
@@ -213,7 +218,13 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     }
 
     try {
-      const res = await postPrintRequest(address, soap, this.timeout, controller.signal);
+      let res = await postPrintRequest(address, soap, this.timeout, controller.signal);
+      // Same normalization the vendor applies inside its onreceive path —
+      // done here so the resolved promise and the legacy callback report
+      // the identical code (apps switch on ERROR_DEVICE_BUSY).
+      if (res.code === 'EX_ENPC_TIMEOUT') {
+        res = { ...res, code: 'ERROR_DEVICE_BUSY' };
+      }
       if (isPrintRequest) {
         fireReceiveEvent(this, res.success, res.code, res.status, res.battery, res.printjobid);
       } else {

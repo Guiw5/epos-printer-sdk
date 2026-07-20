@@ -156,8 +156,13 @@ export class CanvasPrint extends ePOSPrint {
       this.addCut(CUT_FEED);
     }
 
-    // changed to print the message with the printjobid
-    return this.send(this.toString(), printjobid);
+    // Pass the built content explicitly (the vendor's standalone
+    // CanvasPrint inherits ePOSPrint.send and actually posts an EMPTY body
+    // here — canvas printing only worked through Printer's overridden
+    // send). Consume the buffer once handed off, like Printer.send() does.
+    const request = this.toString();
+    this.message = '';
+    return this.send(request, printjobid);
   }
 
   recover(): Promise<PrintServiceResponse> {

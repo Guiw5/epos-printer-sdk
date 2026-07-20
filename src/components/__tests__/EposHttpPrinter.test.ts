@@ -94,6 +94,39 @@ describe('EposHttpPrinter', () => {
     expect(sentBody).toContain('<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print>');
   });
 
+  it('send() consumes the built content — a second chained print does not resend the first (regression: buffer used to accumulate across sends)', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ success: 'true' })));
+    const printer = new EposHttpPrinter('printer.example.com');
+
+    await printer.addText('primer ticket').send();
+    await printer.addText('segundo ticket').send();
+
+    const [, init2] = vi.mocked(fetch).mock.calls[1];
+    const body2 = String((init2 as RequestInit).body);
+    expect(body2).toContain('segundo ticket');
+    expect(body2).not.toContain('primer ticket');
+  });
+
+  it('send() resolves with ERROR_DEVICE_BUSY when the firmware reports EX_ENPC_TIMEOUT (same mapping the legacy onreceive applies)', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      fakeResponse(
+        200,
+        '<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>' +
+          '<response xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print" success="false" code="EX_ENPC_TIMEOUT" status="0" battery="0"/>' +
+          '</s:Body></s:Envelope>'
+      )
+    );
+    const printer = new EposHttpPrinter('printer.example.com');
+
+    const onreceive = vi.fn();
+    printer.onreceive = onreceive;
+    const res = await printer.addText('hola\n').send();
+
+    expect(res.success).toBe(false);
+    expect(res.code).toBe('ERROR_DEVICE_BUSY');
+    expect(onreceive).toHaveBeenCalledWith(expect.objectContaining({ code: 'ERROR_DEVICE_BUSY' }));
+  });
+
   it('send() rejects when the print job fails', async () => {
     vi.mocked(fetch).mockResolvedValue(fakeResponse(500, 'boom'));
     const printer = new EposHttpPrinter('printer.example.com');
