@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
       "port": 5173
+    },
+    {
+      "name": "example",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "examples/react-app", "dev", "--port", "5174", "--strictPort"],
+      "port": 5174
     }
   ]
 }

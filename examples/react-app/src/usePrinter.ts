@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { EposHttpPrinter, decodePrinterStatus } from '@epos/printer/http';
 import type { PrintServiceResponse, PrinterStatus, BarcodeType, Hri, SymbolType, Level } from '@epos/printer/http';
+import { explainResponse, explainError, type Outcome } from './printOutcomes';
 
 export type PrinterConnectionState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -8,6 +9,14 @@ export interface PollJobStatusOptions {
   attempts?: number;
   delayMs?: number;
   onUpdate?: (result: PrintServiceResponse, attempt: number) => void;
+}
+
+export interface RetryOptions {
+  /** Intentos totales (incluye el primero). */
+  attempts?: number;
+  /** Espera inicial; se duplica en cada reintento. */
+  baseDelayMs?: number;
+  onAttempt?: (attempt: number, reason: string) => void;
 }
 
 export interface UsePrinterResult {
@@ -42,6 +51,20 @@ export interface UsePrinterResult {
   printSymbol: (data: string, type: SymbolType, level?: Level) => Promise<PrintServiceResponse>;
   /** Prints a small page-mode label: fixed area, positioned text, and a border rectangle. */
   printLabel: (lines: string[]) => Promise<PrintServiceResponse>;
+
+  /**
+   * Ejecuta un trabajo reintentando automáticamente los casos que el manual
+   * marca como transitorios (impresora ocupada, cola llena, red caída) con
+   * backoff exponencial. Los errores que no se arreglan reintentando
+   * (falta de papel, XML inválido) se devuelven de inmediato.
+   */
+  printWithRetry: (
+    job: () => Promise<PrintServiceResponse>,
+    options?: RetryOptions
+  ) => Promise<PrintServiceResponse>;
+
+  /** Intenta recuperar la impresora de un error recuperable (recover / reset). */
+  recover: () => Promise<PrintServiceResponse>;
 }
 
 /**
@@ -202,6 +225,54 @@ export function usePrinter(): UsePrinterResult {
     return printer.send();
   }, []);
 
+  const recover = useCallback(async (): Promise<PrintServiceResponse> => {
+    const printer = printerRef.current;
+    if (!printer) {
+      throw new Error('No hay impresora conectada');
+    }
+    return printer.recover();
+  }, []);
+
+  const printWithRetry = useCallback(
+    async (
+      job: () => Promise<PrintServiceResponse>,
+      { attempts = 3, baseDelayMs = 500, onAttempt }: RetryOptions = {}
+    ): Promise<PrintServiceResponse> => {
+      let last: PrintServiceResponse | null = null;
+
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        let outcome: Outcome;
+        try {
+          last = await job();
+          outcome = explainResponse(last);
+        } catch (err) {
+          // No llegamos a hablar con la impresora (red, DNS, CORS): también
+          // es transitorio, así que entra en la misma política de reintento.
+          outcome = explainError(err);
+          if (attempt === attempts) throw err;
+          last = null;
+        }
+
+        if (outcome.kind !== 'retry') {
+          // Éxito, o un error que reintentar no arregla (papel, tapa, XML
+          // inválido): devolver enseguida para que la UI actúe.
+          if (last) return last;
+          throw new Error(outcome.meaning);
+        }
+
+        if (attempt < attempts) {
+          const delay = baseDelayMs * 2 ** (attempt - 1);
+          onAttempt?.(attempt, `${outcome.code} — reintento en ${delay}ms`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+
+      if (!last) throw new Error('Sin respuesta de la impresora tras varios intentos');
+      return last;
+    },
+    []
+  );
+
   return {
     state,
     error,
@@ -217,5 +288,7 @@ export function usePrinter(): UsePrinterResult {
     printBarcode,
     printSymbol,
     printLabel,
+    printWithRetry,
+    recover,
   };
 }

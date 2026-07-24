@@ -1,9 +1,11 @@
-import { FormEvent, useState } from 'react';
-import type { BarcodeType, SymbolType } from '@epos/printer/http';
+import { FormEvent, useRef, useState } from 'react';
+import type { BarcodeType, PrintServiceResponse, SymbolType } from '@epos/printer/http';
 import { usePrinter } from './usePrinter';
 import { useLog } from './useLog';
 import { drawDemoCanvas } from './demoCanvas';
 import { BARCODE_TYPES, SYMBOL_TYPES } from './barcodeOptions';
+import { explainResponse, explainError, KIND_LABEL, type Outcome } from './printOutcomes';
+import OutcomePanel from './OutcomePanel';
 
 export interface PrinterCardProps {
   label: string;
@@ -29,8 +31,13 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
     printBarcode,
     printSymbol,
     printLabel,
+    printWithRetry,
+    recover,
   } = usePrinter();
   const { lines, log } = useLog();
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  /** Último trabajo ejecutado, para poder reintentarlo desde el panel. */
+  const lastJobRef = useRef<(() => Promise<PrintServiceResponse>) | null>(null);
 
   const [address, setAddress] = useState('');
   const [port, setPort] = useState(443);
@@ -58,14 +65,35 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
     log('Desconectado.');
   }
 
-  async function handlePrint() {
-    log('Enviando recibo de prueba...');
+  /**
+   * Único punto por el que pasan TODOS los trabajos: reintenta lo
+   * transitorio, traduce el resultado a un diagnóstico con acción
+   * recomendada, y lo deja disponible para reintentar a mano.
+   */
+  async function runJob(description: string, job: () => Promise<PrintServiceResponse>) {
+    setBusy(true);
+    lastJobRef.current = job;
+    log(`${description}...`);
     try {
-      const result = await printText(`${label}\n`);
-      log(result.success ? 'Impreso correctamente.' : `Fallo de impresión: ${result.code}`);
+      const result = await printWithRetry(job, {
+        onAttempt: (attempt, reason) => log(`Intento ${attempt} falló: ${reason}`),
+      });
+      const diagnosis = explainResponse(result);
+      setOutcome(diagnosis);
+      log(`${diagnosis.code} [${KIND_LABEL[diagnosis.kind]}] — ${diagnosis.action}`);
+      return result;
     } catch (err) {
-      log(`Error al imprimir: ${err instanceof Error ? err.message : String(err)}`);
+      const diagnosis = explainError(err);
+      setOutcome(diagnosis);
+      log(`${diagnosis.code} — ${diagnosis.meaning}`);
+      return null;
+    } finally {
+      setBusy(false);
     }
+  }
+
+  function handlePrint() {
+    return runJob('Enviando recibo de prueba', () => printText(`${label}\n`));
   }
 
   async function handleStatus() {
@@ -73,8 +101,33 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
     try {
       const result = await getStatus();
       log(`Estado: 0x${result.status.toString(16)} — batería: ${result.battery}`);
+      const diagnosis = explainResponse(result);
+      setOutcome(diagnosis);
     } catch (err) {
+      setOutcome(explainError(err));
       log(`Error al consultar estado: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async function handleRetryLast() {
+    const job = lastJobRef.current;
+    if (!job) return;
+    await runJob('Reintentando el último trabajo', job);
+  }
+
+  async function handleRecover() {
+    setBusy(true);
+    log('Ejecutando recover()...');
+    try {
+      const result = await recover();
+      const diagnosis = explainResponse(result);
+      setOutcome(diagnosis);
+      log(`recover() → ${diagnosis.code}. ${diagnosis.action}`);
+    } catch (err) {
+      setOutcome(explainError(err));
+      log(`recover() falló: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -88,61 +141,29 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
     }
   }
 
-  async function handlePrintCanvas() {
-    setBusy(true);
+  function handlePrintCanvas() {
     const jobId = `canvas-${Date.now()}`;
-    log(`Enviando imagen (job ${jobId})...`);
-    try {
-      const result = await printCanvasAndTrack(drawDemoCanvas(), jobId, {
+    return runJob(`Enviando imagen (job ${jobId})`, () =>
+      printCanvasAndTrack(drawDemoCanvas(), jobId, {
         onUpdate: (r, attempt) => {
           log(attempt === 0 ? `Job aceptado: success=${r.success} code="${r.code}"` : `Consulta de job #${attempt}: success=${r.success}`);
         },
-      });
-      log(result.success ? 'Job de imagen confirmado como impreso.' : `Job no se confirmó como impreso (code: ${result.code}).`);
-    } catch (err) {
-      log(`Error al imprimir imagen: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
-    }
+      })
+    );
   }
 
-  async function handlePrintBarcode() {
-    setBusy(true);
-    log(`Imprimiendo código de barras (${barcodeType})...`);
-    try {
-      const result = await printBarcode(barcodeData, barcodeType);
-      log(result.success ? 'Código de barras impreso.' : `Fallo: ${result.code}`);
-    } catch (err) {
-      log(`Error: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
-    }
+  function handlePrintBarcode() {
+    return runJob(`Imprimiendo código de barras (${barcodeType})`, () => printBarcode(barcodeData, barcodeType));
   }
 
-  async function handlePrintSymbol() {
-    setBusy(true);
-    log(`Imprimiendo símbolo 2D (${symbolType})...`);
-    try {
-      const result = await printSymbol(symbolData, symbolType);
-      log(result.success ? 'Símbolo impreso.' : `Fallo: ${result.code}`);
-    } catch (err) {
-      log(`Error: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
-    }
+  function handlePrintSymbol() {
+    return runJob(`Imprimiendo símbolo 2D (${symbolType})`, () => printSymbol(symbolData, symbolType));
   }
 
-  async function handlePrintLabel() {
-    setBusy(true);
-    log('Imprimiendo etiqueta (page mode)...');
-    try {
-      const result = await printLabel([label, new Date().toLocaleString(), 'Etiqueta de prueba']);
-      log(result.success ? 'Etiqueta impresa.' : `Fallo: ${result.code}`);
-    } catch (err) {
-      log(`Error: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusy(false);
-    }
+  function handlePrintLabel() {
+    return runJob('Imprimiendo etiqueta (page mode)', () =>
+      printLabel([label, new Date().toLocaleString(), 'Etiqueta de prueba'])
+    );
   }
 
   return (
@@ -282,6 +303,14 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
           </button>
         </div>
       </section>
+
+      <OutcomePanel
+        last={outcome}
+        onRetry={handleRetryLast}
+        onRecover={handleRecover}
+        busy={busy}
+        connected={isConnected}
+      />
 
       <section className="card">
         <h3>Log</h3>

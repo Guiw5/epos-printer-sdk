@@ -196,3 +196,41 @@ button:disabled {
     border-color: #ccc;
   }
 }
+
+/* --- Diagnóstico de resultados ------------------------------------- */
+.outcome {
+  border-left: 4px solid #999;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.08);
+}
+.outcome-none { border-left-color: #2e7d32; }
+.outcome-retry { border-left-color: #ed6c02; }
+.outcome-operator { border-left-color: #d32f2f; }
+.outcome-recover { border-left-color: #0288d1; }
+.outcome-fatal { border-left-color: #6a1b9a; }
+
+.outcome-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+.outcome-head code { font-size: 1rem; font-weight: 700; }
+.outcome-meaning { margin: 0 0 0.5rem; }
+.outcome-action { margin: 0 0 0.75rem; font-size: 0.9rem; }
+
+.badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+.badge-none { background: #2e7d32; }
+.badge-retry { background: #ed6c02; }
+.badge-operator { background: #d32f2f; }
+.badge-recover { background: #0288d1; }
+.badge-fatal { background: #6a1b9a; }
+
+.outcome-catalog { margin-top: 1rem; }
+.outcome-catalog summary { cursor: pointer; font-size: 0.9rem; }
+.outcome-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.85rem; }
+.outcome-table th, .outcome-table td { text-align: left; padding: 0.5rem; border-bottom: 1px solid rgba(127,127,127,0.25); vertical-align: top; }
