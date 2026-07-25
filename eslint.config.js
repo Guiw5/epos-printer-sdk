@@ -47,8 +47,17 @@ export default [
     },
   },
   {
+    // Repo tooling: plain Node scripts, not library or browser code.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: globals.node,
+    },
+  },
+  {
     // Hand-written ambient shim for socket.io-client@0.8.7, which ships no
-    // types of its own — the legacy API is inherently loosely typed here.
+    // types of its own: the legacy API is inherently loosely typed here.
     files: ['src/types/socket.io-client.d.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-function-type': 'off',
