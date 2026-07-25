@@ -23,6 +23,11 @@ Key facts an assistant should know before writing code with this library:
   with `success: false` and a diagnostic `code`.
 - **Default port is 443 (https).** Pass `{ port: 80 }` for plain HTTP. Browsers
   block HTTP calls from HTTPS pages, and printers serve self-signed certificates.
+- **There is a simulator.** `epos-printer-sdk/simulator` exports
+  `createSimulator()`, whose `.fetch` can be passed to
+  `new EposHttpPrinter(host, { fetch })`. Use it to write examples, tests or
+  demos that need no hardware; it speaks the real protocol and models paper,
+  cover and drawer state.
 - **Requests to the same printer are serialized automatically** within a process.
   Across separate clients they are not, handle `ERROR_DEVICE_BUSY` with retries.
 - **A plain TM-T88V does not support the socket (ePOS-Device) transport.** Only
@@ -54,6 +59,7 @@ if (!result.success) console.error(result.code);
 - [README (Spanish)](https://github.com/Guiw5/epos-printer-sdk/blob/main/README.es.md): the same guide in Spanish.
 - [CHANGELOG](https://github.com/Guiw5/epos-printer-sdk/blob/main/CHANGELOG.md): release history and known limitations.
 - [Engineering notes](https://github.com/Guiw5/epos-printer-sdk/blob/main/docs/ENGINEERING.md): how the SDK was reverse-engineered from Epson's minified bundle, the bugs found in the original, and what is verified against real hardware versus assumed.
+- [Live demo](https://guiw5.github.io/epos-printer-sdk/): the example app running against the simulator, no printer required.
 - [React example app](https://github.com/Guiw5/epos-printer-sdk/tree/main/examples/react-app): working integration with connection UI, live status, error classification and retry.
 
 ## API surface
@@ -65,6 +71,8 @@ if (!result.success) console.error(result.code);
 - `printer.getPrintJobStatus(printjobid)`, status of a previously sent job.
 - `printer.recover()` / `printer.reset()`, clear a recoverable printer error.
 - `printer.open()` / `printer.close()`, start/stop background status polling.
+- `createSimulator({ initialState?, latencyMs?, onPrint? })` (from
+  `epos-printer-sdk/simulator`) returns `{ fetch, state, jobs, reset() }`.
 - `decodePrinterStatus(status, battery)`, decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
 - Builder (chainable): `addText`, `addTextAlign`, `addTextSize`, `addTextStyle`, `addTextFont`, `addTextDouble`, `addTextLang`, `addTextLineSpace`, `addTextRotate`, `addTextSmooth`, `addTextPosition`, `addTextVPosition`, `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`, `addLayout`, `addHLine`, `addVLineBegin`, `addVLineEnd`, `addRotateBegin`, `addRotateEnd`, `addBarcode`, `addSymbol`, `addImage`, `addLogo`, `addPageBegin`, `addPageArea`, `addPageDirection`, `addPagePosition`, `addPageLine`, `addPageRectangle`, `addPageEnd`, `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`, `addCommand`.
 - Events (push-based state): `onstatuschange`, `onbatterystatuschange`, `ononline`, `onoffline`, `onpoweroff`, `oncoveropen`, `oncoverok`, `onpaperend`, `onpapernearend`, `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`, `onreceive`, `onerror`.
