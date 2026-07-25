@@ -116,12 +116,12 @@ export class CommBoxManager {
     
     const commBox = this.getCommBox(box_id);
     if (!commBox) {
-      throw new Error(`CommBox ${box_id} no encontrado.`);
+      throw new Error(`CommBox ${box_id} not found.`);
     }
     
     const method = `client_${type}` as keyof CommBox;
     if (typeof commBox[method] !== "function") {
-      throw new Error(`Método ${method} no encontrado en CommBox.`);
+      throw new Error(`Method ${method} not found on CommBox.`);
     }
 
     try {
@@ -130,7 +130,7 @@ export class CommBoxManager {
       // vendor's eval("commBoxObj.client_x(...)") kept the receiver).
       (commBox[method] as (data: any, sq: number) => void).call(commBox, data, sq);
     } catch {
-      throw new Error(`Error al ejecutar ${method} in commbox ${box_id}.`);
+      throw new Error(`Failed to run ${method} on commbox ${box_id}.`);
     }
   }
 

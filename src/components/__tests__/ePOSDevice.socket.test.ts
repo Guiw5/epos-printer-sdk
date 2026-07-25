@@ -6,7 +6,7 @@ import { CODES, REQUEST } from '../../constants/eposmessage';
 import { RESULT_OK, CONNECT_TIMEOUT } from '../../constants/devices';
 import { ERRORS } from '../../constants/connection';
 
-// Mock de socket.io-client
+// socket.io-client mock
 vi.mock('socket.io-client', () => {
   const mockSocket = {
     on: vi.fn(),
@@ -48,7 +48,7 @@ describe('ePOSDevice Socket Connection', () => {
 
   beforeEach(() => {
     device = new ePOSDevice();
-    // Obtenemos la instancia del socket mock
+    // Grab the mock socket instance
     mockSocket = vi.mocked(io.connect(''));
 
     // Avoid real network calls: handleSocketError() (the socket "error"
@@ -67,14 +67,14 @@ describe('ePOSDevice Socket Connection', () => {
   });
 
   it('should handle complete socket connection sequence', async () => {
-    // 1. Iniciamos la conexión
+    // 1. Start connecting
     const connectPromise = device.connect('192.168.1.1', 8008);
 
-    // 2. Simulamos el evento "connect" del socket
+    // 2. Simulate the socket's "connect" event
     const connectCallback = await waitForHandler(mockSocket, 'connect');
     connectCallback();
 
-    // 3. Simulamos el mensaje CONNECT del servidor. parseRequestMessage()
+    // 3. Simulate the server's CONNECT message. parseRequestMessage()
     // reads these positionally (message[0]/[1]/[2]...), matching
     // ePosDeviceMessage.toTransmissionForm() — not a {request, data} object.
     const messageCallback = await waitForHandler(mockSocket, 'message');
@@ -93,37 +93,37 @@ describe('ePOSDevice Socket Connection', () => {
       }
     ]);
 
-    // 4. Simulamos la respuesta PUBKEY exitosa
+    // 4. Simulate a successful PUBKEY response
     messageCallback([REQUEST.PUBKEY, CODES.RESULT_OK]);
 
-    // 5. Simulamos la respuesta ADMININFO exitosa
+    // 5. Simulate a successful ADMININFO response
     messageCallback([
       REQUEST.ADMININFO,
       CODES.RESULT_OK,
       { admin_name: 'admin', location: 'location' }
     ]);
 
-    // 6. Verificamos que la conexión fue exitosa
+    // 6. The connection succeeded
     const result = await connectPromise;
     expect(result).toBe(RESULT_OK);
   });
 
   it('should handle socket connection errors', async () => {
-    // 1. Iniciamos la conexión
+    // 1. Start connecting
     const connectPromise = device.connect('192.168.1.1', 8008);
 
-    // 2. Simulamos un error de conexión (falls back to the mocked HTTP
+    // 2. Simulate a connection error (falls back to the mocked HTTP
     // probe above, which resolves to ERROR_PARAMETER — never OK)
     const errorCallback = await waitForHandler(mockSocket, 'error');
     errorCallback(new Error('Connection failed'));
 
-    // 3. Verificamos que la conexión falló
+    // 3. The connection failed
     const result = await connectPromise;
     expect(result).not.toBe(RESULT_OK);
   });
 
   it('should handle PUBKEY mismatch error', async () => {
-    // 1. Iniciamos la conexión
+    // 1. Start connecting
     const connectPromise = device.connect('192.168.1.1', 8008);
 
     // Force the "retry window exhausted" branch of procPubkey's mismatch
@@ -131,11 +131,11 @@ describe('ePOSDevice Socket Connection', () => {
     // just schedules a silent retry and connect() never settles.
     (device as unknown as { connectStartTime: number }).connectStartTime = Date.now() - CONNECT_TIMEOUT - 1000;
 
-    // 2. Simulamos el evento "connect" del socket
+    // 2. Simulate the socket's "connect" event
     const connectCallback = await waitForHandler(mockSocket, 'connect');
     connectCallback();
 
-    // 3. Simulamos el mensaje CONNECT
+    // 3. Simulate the CONNECT message
     const messageCallback = await waitForHandler(mockSocket, 'message');
     messageCallback([
       REQUEST.CONNECT,
@@ -152,16 +152,16 @@ describe('ePOSDevice Socket Connection', () => {
       }
     ]);
 
-    // 4. Simulamos error de PUBKEY, ya fuera de la ventana de reintento
+    // 4. Simulate a PUBKEY error, past the retry window
     messageCallback([REQUEST.PUBKEY, CODES.SHARED_KEY_MISMATCH_ERROR]);
 
-    // 5. Verificamos que la conexión falló
+    // 5. The connection failed
     const result = await connectPromise;
     expect(result).not.toBe(RESULT_OK);
   });
 
   it('createDevice() resolves with the device once the OPENDEVICE response arrives', async () => {
-    // Handshake completo primero
+    // Full handshake first
     const connectPromise = device.connect('192.168.1.1', 8008);
     (await waitForHandler(mockSocket, 'connect'))();
     const messageCallback = await waitForHandler(mockSocket, 'message');
@@ -179,8 +179,8 @@ describe('ePOSDevice Socket Connection', () => {
 
     const devicePromise = device.createDevice('local_printer', 'type_printer');
 
-    // El OPENDEVICE sale por el socket de forma asíncrona (select() hace un
-    // import dinámico de la clase del device), así que esperamos el emit.
+    // OPENDEVICE goes out over the socket asynchronously (select() does a
+    // dynamic import of the device class), so wait for the emit.
     await vi.waitFor(() => {
       const sent = mockSocket.emit.mock.calls.find(
         (c) => c[0] === 'message' && (c[1] as unknown[])?.[0] === REQUEST.OPENDEVICE
@@ -188,7 +188,7 @@ describe('ePOSDevice Socket Connection', () => {
       if (!sent) throw new Error('OPENDEVICE not emitted yet');
     });
 
-    // Simulamos la respuesta OK del server
+    // Simulate the server's OK response
     messageCallback([REQUEST.OPENDEVICE, 'local_printer', CODES.RESULT_OK, {}, 0]);
 
     const printer = await devicePromise;
@@ -228,9 +228,9 @@ describe('ePOSDevice Socket Connection', () => {
   });
 
   it('should handle reconnection sequence', async () => {
-    // 1. Completamos primero un handshake exitoso: sin un connectionId real
-    // asignado, "disconnect" no puede distinguir una reconexión legítima de
-    // un cierre sin más (ver procConnect / el "disconnect" handler).
+    // 1. Complete a successful handshake first: without a real connectionId
+    // assigned, "disconnect" can't tell a legitimate reconnect from
+    // a plain close (see procConnect / the "disconnect" handler).
     const connectPromise = device.connect('192.168.0.3', 8008);
 
     const connectCallback = await waitForHandler(mockSocket, 'connect');
@@ -263,16 +263,16 @@ describe('ePOSDevice Socket Connection', () => {
     const onreconnect = vi.fn();
     device.onreconnect = onreconnect;
 
-    // 2. Simulamos que el transporte se cae
+    // 2. Simulate the transport dropping
     const disconnectCallback = await waitForHandler(mockSocket, 'disconnect');
     disconnectCallback();
 
-    // 3. Verificamos que se inició la reconexión
+    // 3. Reconnection started
     expect(device['reconnectTryCount']).toBe(0);
     expect(device['reconnectTimerId']).not.toBe(0);
-    expect(device.isConnected()).toBe(true); // RECONNECTING cuenta como conectado
+    expect(device.isConnected()).toBe(true); // RECONNECTING counts as connected
 
-    // 4. Simulamos reconexión exitosa
+    // 4. Simulate a successful reconnect
     messageCallback([REQUEST.RECONNECT, CODES.RESULT_OK]);
 
     expect(onreconnect).toHaveBeenCalledTimes(1);

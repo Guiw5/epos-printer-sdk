@@ -74,7 +74,7 @@ printBtn.addEventListener('click', async () => {
       .addCut('feed')
       .send();
 
-    log(result.success ? 'Impreso correctamente.' : `Fallo de impresión: ${result.code}`);
+    log(result.success ? 'Printed successfully.' : `Print failed: ${result.code}`);
   } catch (error) {
     log(`Error al imprimir: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
@@ -90,7 +90,7 @@ statusBtn.addEventListener('click', async () => {
 
   try {
     const result = await printer.send();
-    log(`Estado: 0x${result.status.toString(16)} — batería: ${result.battery}`);
+    log(`Status: 0x${result.status.toString(16)} — battery: ${result.battery}`);
   } catch (error) {
     log(`Error al consultar estado: ${error instanceof Error ? error.message : String(error)}`);
   } finally {

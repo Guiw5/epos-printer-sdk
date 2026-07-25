@@ -10,12 +10,12 @@ export async function loadNamedClass(name: string): Promise<DeviceConstructor> {
   const path = `../devices/${name}.ts`;
 
   const loader = modules[path];
-  if (!loader) throw new Error(`Clase no encontrada: ${name}`);
+  if (!loader) throw new Error(`Class not found: ${name}`);
   
   const mod = await loader() as Record<string, DeviceConstructor>;
   
   const clazz = mod[name];
-  if (!clazz) throw new Error(`No se exportó una clase llamada '${name}' desde ${path}`);
+  if (!clazz) throw new Error(`No class named '${name}' is exported from ${path}`);
 
   return clazz;
 }

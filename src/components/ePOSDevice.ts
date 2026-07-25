@@ -698,7 +698,7 @@ export class ePOSDevice {
             element.deviceObject.finalize();
           }
         } catch {
-          // Ignorar errores de finalización
+          // Ignore finalization errors
         }
         this.deviceIntances.remove(deviceId);
       }

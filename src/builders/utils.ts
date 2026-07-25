@@ -53,7 +53,7 @@ export function toBase64BinaryOLD(s: string): string {
   const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let result: string[] = [];  
   let i = 0;
-  // Proceso de conversión en bloques de 3 bytes a 4 caracteres base64
+  // Convert in blocks of 3 bytes to 4 base64 characters
   while (i < s.length) {
     const n = (s.charCodeAt(i++) << 16) | (s.charCodeAt(i++) << 8) | s.charCodeAt(i++);
     result.push(base64Chars.charAt((n >> 18) & 63));

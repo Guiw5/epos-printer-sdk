@@ -11,15 +11,15 @@ describe('ePosCrypto', () => {
   });
 
   describe('genClientKeys', () => {
-    it('debería generar las claves del cliente correctamente', () => {
-      // Generamos un número primo grande usando las funciones existentes
+    it('generates the client keys', () => {
+      // Generate a large prime with the existing helpers
       const prime = randProbPrime(64);
       const prime_s = bigInt2str(prime, 16);
       const pubkey_s = prime_s; // Para tests usamos el mismo valor
 
       crypto.genClientKeys(prime_s, pubkey_s);
       
-      // Verificar que se generó una clave pública
+      // A public key must have been produced
       const pubkey = crypto.getPubkey();
       expect(pubkey).toBeDefined();
       expect(Array.isArray(pubkey)).toBe(true);
@@ -28,7 +28,7 @@ describe('ePosCrypto', () => {
   });
 
   describe('bfEncrypt y bfDecrypt', () => {
-    it('debería encriptar y desencriptar correctamente', () => {
+    it('round-trips encrypt and decrypt', () => {
       // Primero generamos las claves
       const prime = randProbPrime(64);
       const prime_s = bigInt2str(prime, 16);
@@ -41,7 +41,7 @@ describe('ePosCrypto', () => {
       // Encriptar
       const encryptedData = crypto.bfEncrypt(originalData);
       
-      // Verificar que la encriptación fue exitosa
+      // Encryption succeeded
       expect(encryptedData).toBeDefined();
       expect(encryptedData).not.toBe('');
       expect(encryptedData).not.toBe(originalData);
@@ -49,13 +49,13 @@ describe('ePosCrypto', () => {
       // Desencriptar
       const decryptedData = crypto.bfDecrypt(encryptedData);
       
-      // Verificar que la desencriptación fue exitosa
+      // Decryption succeeded
       expect(decryptedData).toBeDefined();
       expect(decryptedData).not.toBe('');
       expect(decryptedData).toBe(originalData);
     });
 
-    it('debería manejar datos vacíos correctamente', () => {
+    it('handles empty input', () => {
       // Primero generamos las claves
       const prime = randProbPrime(64);
       const prime_s = bigInt2str(prime, 16);

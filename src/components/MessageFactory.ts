@@ -1,5 +1,5 @@
 import { ePosDeviceMessage, Data, MsgData } from './ePosDeviceMessage';
-import { ePosCrypto } from './ePosCrypto'; // Suponemos que existe un módulo de criptografía
+import { ePosCrypto } from './ePosCrypto';
 import { bigInt2str } from '../crypto/bigint';
 import { REQUEST } from '../constants/eposmessage';
 

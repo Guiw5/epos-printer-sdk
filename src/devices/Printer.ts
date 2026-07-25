@@ -108,15 +108,15 @@ export class Printer extends CanvasPrint {
       status = this.status | this.ASB_NO_RESPONSE;
     }
 
-    // Comparaciones diferenciales de estado y batería
+    // Diff the status and battery against the previous reading
     const statusDiff = this.status === this.ASB_DRAWER_KICK ? ~0 : this.status ^ status;
     const batteryDiff = this.status === 0 ? ~0 : this.battery ^ battery;
 
-    // Actualiza el estado y la batería
+    // Store the new values
     this.status = status;
     this.battery = battery;
 
-    // Llama a los eventos de cambio de estado si ha habido una diferencia
+    // Fire change events only where something actually changed
     if (statusDiff && this.onstatuschange) {
       this.onstatuschange(status);
     }
@@ -124,7 +124,7 @@ export class Printer extends CanvasPrint {
       this.onbatterystatuschange(battery);
     }
 
-    // Manejo de diferentes tipos de cambios de estado
+    // Dispatch the specific transitions
     if (statusDiff & (this.ASB_NO_RESPONSE | this.ASB_OFF_LINE)) {
       if (status & this.ASB_NO_RESPONSE) {
         this.onpoweroff?.();

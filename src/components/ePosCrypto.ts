@@ -3,16 +3,16 @@ import { MD5 } from '../crypto/md5';
 import blowfish, { EncryptParams, DecryptParams } from '../crypto/blowfish';
 import { encode, decode } from '../crypto/base64';
 
-// Tipos necesarios para mantener la compatibilidad con la implementación original
+// Types kept to stay compatible with the original implementation
 type BigInteger = number[];
 
-// Función auxiliar para convertir BigInteger a string hexadecimal
+// Helper: BigInteger to hex string
 function bigInt2str(num: BigInteger, base: number): string {
   return num.map(n => n.toString(base).padStart(2, '0')).join('');
 }
 
 /**
- * Implementación TypeScript de ePosCrypto
+ * TypeScript implementation of ePosCrypto
  * Mantiene la funcionalidad exacta del SDK original
  */
 export class ePosCrypto {
@@ -26,8 +26,8 @@ export class ePosCrypto {
 
   /**
    * Genera las claves del cliente usando el protocolo Diffie-Hellman
-   * @param arg_prime_s - Número primo en formato hexadecimal
-   * @param arg_pubkey_s - Clave pública en formato hexadecimal
+   * @param arg_prime_s - Prime number, hex encoded
+   * @param arg_pubkey_s - Public key, hex encoded
    */
   public genClientKeys(arg_prime_s: string, arg_pubkey_s: string): void {
     // Generador fijo g = 2
@@ -36,9 +36,9 @@ export class ePosCrypto {
     const prime_c = str2bigInt(arg_prime_s, 16);
     // Generar clave privada aleatoria de 64 bits
     const privkey_c = randBigInt(64, 0);
-    // Calcular clave pública: g^privkey mod prime
+    // Compute the public key: g^privkey mod prime
     this.pubkey_c = powMod(g, privkey_c, prime_c);
-    // Convertir clave pública recibida de hex a BigInteger
+    // Convert the received public key from hex to BigInteger
     const intPubkey = str2bigInt(arg_pubkey_s, 16);
     // Calcular secreto compartido: pubkey^privkey mod prime
     const modNum = powMod(intPubkey, privkey_c, prime_c);
@@ -56,7 +56,7 @@ export class ePosCrypto {
   /**
    * Cifra datos usando Blowfish en modo CBC
    * @param data - Datos a cifrar
-   * @returns Datos cifrados en base64 o cadena vacía si hay error
+   * @returns Base64 ciphertext, or an empty string on error
    */
   public bfEncrypt(data: string): string {
     try {
@@ -78,7 +78,7 @@ export class ePosCrypto {
   /**
    * Descifra datos usando Blowfish en modo CBC
    * @param data - Datos cifrados en base64
-   * @returns Datos descifrados o cadena vacía si hay error
+   * @returns Plaintext, or an empty string on error
    */
   public bfDecrypt(data: string): string {
     try {
@@ -95,8 +95,8 @@ export class ePosCrypto {
   }
 
   /**
-   * Obtiene la clave pública actual
-   * @returns Clave pública como BigInteger
+   * Returns the current public key
+   * @returns Public key as a BigInteger
    */
   public getPubkey(): BigInteger {
     return this.pubkey_c;
