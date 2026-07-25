@@ -52,8 +52,8 @@ callback-driven API. This package is a modern replacement.
   automatically, because the hardware processes them one at a time anyway.
   Ten simultaneous jobs with a 2s timeout against a real TM-T88V: 4/10 succeed
   without this, 10/10 with it.
-- **Verified, not just written.** 60 unit tests, plus opt-in integration tests
-  that run against a physical printer.
+- **Verified, not just written.** 71 unit tests for the library and 18 for the
+  demo, plus opt-in integration tests that run against a physical printer.
 
 ## Install
 

@@ -52,8 +52,9 @@ una API íntegramente basada en callbacks. Este paquete es un reemplazo moderno.
   automáticamente, porque el hardware igual las procesa de a una. Diez trabajos
   simultáneos con timeout de 2s contra una TM-T88V real: 4/10 sin esto, 10/10
   con esto.
-- **Verificada, no solo escrita.** 60 tests unitarios, más tests de integración
-  opcionales que corren contra una impresora física.
+- **Verificada, no solo escrita.** 71 tests unitarios de la librería y 18 de la
+  demo, más tests de integración opcionales que corren contra una impresora
+  física.
 
 ## Instalación
 
