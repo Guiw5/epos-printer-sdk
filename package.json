@@ -103,5 +103,5 @@
     "vitest": "^3.0.9",
     "socket.io-client": "0.8.7"
   },
-  "private": true
+  "private": false
 }
