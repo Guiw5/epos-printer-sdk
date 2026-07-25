@@ -1,170 +1,170 @@
 import type { PrintServiceResponse } from 'epos-printer-sdk/http';
 
 /**
- * Catálogo de resultados de impresión y qué hacer con cada uno.
+ * Catalogue of print outcomes and what to do about each one.
  *
- * Los códigos salen de la tabla `code` del manual oficial ePOS-Print XML
- * (Chapter 4 — XML for Controlling Printer), más ERROR_DEVICE_BUSY, que es
- * el mapeo que el SDK aplica sobre EX_ENPC_TIMEOUT del firmware.
+ * The codes come from the `code` table in the official ePOS-Print XML manual
+ * (Chapter 4 — XML for Controlling Printer), plus ERROR_DEVICE_BUSY, which is
+ * the mapping the SDK applies over the firmware's EX_ENPC_TIMEOUT.
  */
 
-/** Qué debería hacer la app ante un resultado. */
+/** What the app should do about a result. */
 export type RecoveryKind =
-  /** Nada que hacer: salió bien. */
+  /** Nothing to do: it worked. */
   | 'none'
-  /** Reintentar automáticamente: la impresora estaba ocupada/saturada. */
+  /** Retry automatically: the printer was busy or saturated. */
   | 'retry'
-  /** Requiere que una persona toque la impresora (papel, tapa, atasco). */
+  /** Someone has to touch the printer (paper, cover, jam). */
   | 'operator'
-  /** Se puede intentar recuperar por software: recover() / reset(). */
+  /** Recoverable in software: recover() / reset(). */
   | 'recover'
-  /** Bug de la app o de configuración: reintentar no cambia nada. */
+  /** App or configuration bug: retrying changes nothing. */
   | 'fatal';
 
 export interface Outcome {
   code: string;
-  /** Explicación en una línea, orientada a quien opera la app. */
+  /** One-line explanation, written for whoever operates the app. */
   meaning: string;
   kind: RecoveryKind;
-  /** Acción concreta recomendada. */
+  /** The concrete recommended action. */
   action: string;
 }
 
 const OUTCOMES: Outcome[] = [
-  // --- Éxito -------------------------------------------------------------
+  // --- Success -----------------------------------------------------------
   {
     code: 'OK',
-    meaning: 'El trabajo se imprimió correctamente.',
+    meaning: 'The job printed successfully.',
     kind: 'none',
-    action: 'Continuar. Si usás printjobid, ya podés darlo por cerrado.',
+    action: 'Carry on. If you passed a printjobid, you can consider it closed.',
   },
 
-  // --- Reintentables (contención entre clientes) -------------------------
+  // --- Retryable (contention between clients) ----------------------------
   {
     code: 'ERROR_DEVICE_BUSY',
-    meaning: 'La impresora estaba ocupada con otro trabajo (EX_ENPC_TIMEOUT del firmware).',
+    meaning: 'The printer was busy with another job (firmware EX_ENPC_TIMEOUT).',
     kind: 'retry',
-    action: 'Reintentar con backoff (500ms, 1s, 2s). Es el caso típico con varios clientes imprimiendo a la vez.',
+    action: 'Retry with backoff (500ms, 1s, 2s). This is the normal case with several clients printing at once.',
   },
   {
     code: 'TooManyRequests',
-    meaning: 'Se superó el límite de trabajos simultáneos aceptados por la impresora.',
+    meaning: 'More simultaneous jobs than the printer accepts.',
     kind: 'retry',
-    action: 'Reintentar con backoff más largo (2s+). Si es frecuente, encolar los trabajos en un backend.',
+    action: 'Retry with a longer backoff (2s+). If it happens often, queue jobs in a backend.',
   },
   {
     code: 'EX_SPOOLER',
-    meaning: 'La cola de impresión de la impresora está llena.',
+    meaning: "The printer's spool queue is full.",
     kind: 'retry',
-    action: 'Esperar y reintentar. Si persiste, revisar si hay un trabajo trabado en la impresora.',
+    action: 'Wait and retry. If it persists, check for a job stuck in the printer.',
   },
   {
     code: 'JobSpooling',
-    meaning: 'El trabajo está en la cola, todavía no terminó de imprimirse.',
+    meaning: 'The job is queued and has not finished printing yet.',
     kind: 'retry',
-    action: 'No es un error: consultar getPrintJobStatus(printjobid) hasta que confirme.',
+    action: 'Not an error: poll getPrintJobStatus(printjobid) until it confirms.',
   },
   {
     code: 'Printing',
-    meaning: 'La impresora está imprimiendo en este momento.',
+    meaning: 'The printer is printing right now.',
     kind: 'retry',
-    action: 'No es un error: consultar getPrintJobStatus(printjobid) hasta que confirme.',
+    action: 'Not an error: poll getPrintJobStatus(printjobid) until it confirms.',
   },
   {
     code: 'EX_TIMEOUT',
-    meaning: 'Timeout de impresión.',
+    meaning: 'Print timeout.',
     kind: 'retry',
-    action: 'Reintentar. Si se repite, verificar la red y el estado físico de la impresora.',
+    action: 'Retry. If it repeats, check the network and the printer itself.',
   },
 
-  // --- Requieren intervención humana -------------------------------------
+  // --- Needs a person ----------------------------------------------------
   {
     code: 'EPTR_REC_EMPTY',
-    meaning: 'Se acabó el papel.',
+    meaning: 'Out of paper.',
     kind: 'operator',
-    action: 'Avisar al operador que cargue papel. Reintentar recién cuando el estado indique paper: "ok".',
+    action: 'Ask the operator to load paper. Retry only once the status reports paper: "ok".',
   },
   {
     code: 'EPTR_COVER_OPEN',
-    meaning: 'La tapa está abierta.',
+    meaning: 'The cover is open.',
     kind: 'operator',
-    action: 'Avisar que cierre la tapa. Reintentar cuando coverOpen sea false.',
+    action: 'Ask for the cover to be closed. Retry when coverOpen is false.',
   },
   {
     code: 'EPTR_BATTERY_LOW',
-    meaning: 'La batería se agotó (modelos portátiles).',
+    meaning: 'The battery has run out (portable models).',
     kind: 'operator',
-    action: 'Avisar que conecte la impresora a la corriente.',
+    action: 'Ask for the printer to be plugged in.',
   },
   {
     code: 'EPTR_CUTTER',
-    meaning: 'Error del cortador automático — típicamente papel trabado.',
+    meaning: 'Auto-cutter error — usually jammed paper.',
     kind: 'operator',
-    action: 'Avisar que destrabe el cortador; después llamar a recover() para volver a habilitar la impresión.',
+    action: 'Ask for the cutter to be cleared, then call recover() to re-enable printing.',
   },
   {
     code: 'EPTR_MECHANICAL',
-    meaning: 'Error mecánico (carro trabado, etc.).',
+    meaning: 'Mechanical error (jammed carriage, etc.).',
     kind: 'operator',
-    action: 'Requiere revisión física. Después de destrabar, llamar a recover().',
+    action: 'Needs physical attention. Once cleared, call recover().',
   },
   {
     code: 'ERROR_WAIT_EJECT',
-    meaning: 'La impresora espera que se retire el papel impreso.',
+    meaning: 'The printer is waiting for the printed paper to be removed.',
     kind: 'operator',
-    action: 'Avisar que retire el papel. El siguiente trabajo sale solo cuando se libere.',
+    action: 'Ask for the paper to be taken. The next job goes out once it is clear.',
   },
 
-  // --- Recuperables por software -----------------------------------------
+  // --- Recoverable in software -------------------------------------------
   {
     code: 'EPTR_AUTOMATICAL',
-    meaning: 'Error con recuperación automática disponible.',
+    meaning: 'Error with automatic recovery available.',
     kind: 'recover',
-    action: 'Llamar a recover() y reintentar el trabajo.',
+    action: 'Call recover() and retry the job.',
   },
   {
     code: 'EPTR_UNRECOVERABLE',
-    meaning: 'Error irrecuperable — normalmente requiere apagar y encender la impresora.',
+    meaning: 'Unrecoverable error — normally needs a power cycle.',
     kind: 'operator',
-    action: 'Avisar que reinicie la impresora. recover() no alcanza para este caso.',
+    action: 'Ask for the printer to be restarted. recover() is not enough here.',
   },
 
-  // --- Errores de la app / configuración ---------------------------------
+  // --- App / configuration errors ----------------------------------------
   {
     code: 'SchemaError',
-    meaning: 'El XML enviado tiene un error de sintaxis.',
+    meaning: 'The XML sent has a syntax error.',
     kind: 'fatal',
-    action: 'Bug de la app: revisar los datos que se le pasan a los métodos add*(). Reintentar no sirve.',
+    action: 'App bug: check the data passed to the add*() methods. Retrying will not help.',
   },
   {
     code: 'DeviceNotFound',
-    meaning: 'No existe una impresora con ese devid.',
+    meaning: 'No printer exists with that devid.',
     kind: 'fatal',
-    action: 'Revisar el deviceId (por defecto "local_printer") en la configuración de la impresora.',
+    action: 'Check the deviceId (default "local_printer") against the printer configuration.',
   },
   {
     code: 'PrintSystemError',
-    meaning: 'Error del sistema de impresión.',
+    meaning: 'Print system error.',
     kind: 'fatal',
-    action: 'Revisar la impresora. Si persiste, reiniciarla.',
+    action: 'Check the printer. If it persists, restart it.',
   },
   {
     code: 'EX_BADPORT',
-    meaning: 'Error en el puerto de comunicación con el dispositivo.',
+    meaning: 'Error on the communication port with the device.',
     kind: 'fatal',
-    action: 'Revisar la conexión física/de red de la impresora.',
+    action: "Check the printer's physical/network connection.",
   },
   {
     code: 'JobNotFound',
-    meaning: 'El printjobid consultado no existe.',
+    meaning: 'The printjobid queried does not exist.',
     kind: 'fatal',
-    action: 'Verificar que el id sea el mismo que se usó al imprimir. Los ids viejos expiran.',
+    action: 'Check the id matches the one used to print. Old ids expire.',
   },
   {
     code: 'RequestEntityTooLarge',
-    meaning: 'El trabajo excede la capacidad de la impresora.',
+    meaning: "The job exceeds the printer's capacity.",
     kind: 'fatal',
-    action: 'Reducir el tamaño (imagen más chica, menos contenido) y dividir en varios trabajos.',
+    action: 'Make it smaller (smaller image, less content) and split it into several jobs.',
   },
 ];
 
@@ -172,7 +172,7 @@ const BY_CODE = new Map(OUTCOMES.map((o) => [o.code, o]));
 
 export const ALL_OUTCOMES = OUTCOMES;
 
-/** Traduce una respuesta de la impresora al resultado y su acción recomendada. */
+/** Translates a printer response into the outcome and its recommended action. */
 export function explainResponse(res: PrintServiceResponse): Outcome {
   if (res.success) {
     return BY_CODE.get('OK')!;
@@ -182,32 +182,32 @@ export function explainResponse(res: PrintServiceResponse): Outcome {
     return known;
   }
   return {
-    code: res.code || '(sin código)',
-    meaning: 'La impresora rechazó el trabajo con un código no catalogado.',
+    code: res.code || '(no code)',
+    meaning: 'The printer rejected the job with a code that is not catalogued.',
     kind: 'fatal',
-    action: 'Revisar el código contra el manual ePOS-Print XML y el estado de la impresora.',
+    action: 'Check the code against the ePOS-Print XML manual and the printer status.',
   };
 }
 
 /**
- * Traduce una excepción (no llegamos a hablar con la impresora: red caída,
- * host mal escrito, CORS, timeout) al mismo formato.
+ * Translates an exception (we never reached the printer: network down, wrong
+ * host, CORS, timeout) into the same shape.
  */
 export function explainError(err: unknown): Outcome {
   const message = err instanceof Error ? err.message : String(err);
   return {
-    code: 'SIN_RESPUESTA',
-    meaning: `No se pudo contactar la impresora: ${message}`,
+    code: 'NO_RESPONSE',
+    meaning: `Could not reach the printer: ${message}`,
     kind: 'retry',
     action:
-      'Verificar red/dirección/HTTPS. Reintentar con backoff: el trabajo puede no haber llegado, así que reintentar es seguro salvo que ya se haya impreso.',
+      'Check network, address and HTTPS. Retry with backoff: the job may never have arrived, so retrying is safe unless it already printed.',
   };
 }
 
 export const KIND_LABEL: Record<RecoveryKind, string> = {
   none: 'OK',
-  retry: 'Reintentable',
-  operator: 'Requiere operador',
-  recover: 'Recuperable por software',
-  fatal: 'Error de app/config',
+  retry: 'Retryable',
+  operator: 'Needs operator',
+  recover: 'Software recoverable',
+  fatal: 'App/config error',
 };

@@ -1,21 +1,17 @@
 import { useCallback, useRef, useState } from 'react';
 import { EposHttpPrinter, decodePrinterStatus } from 'epos-printer-sdk/http';
+import type { PrintServiceResponse, PrinterStatus } from 'epos-printer-sdk/http';
 import { createSimulator, type Simulator } from 'epos-printer-sdk/simulator';
-import type { PrintServiceResponse, PrinterStatus, BarcodeType, Hri, SymbolType, Level } from 'epos-printer-sdk/http';
 import { explainResponse, explainError, type Outcome } from './printOutcomes';
+import type { Recipe, RecipeContext } from './recipes';
+import type { PrintedJob } from './PaperRail';
 
 export type PrinterConnectionState = 'idle' | 'connecting' | 'connected' | 'error';
 
-export interface PollJobStatusOptions {
-  attempts?: number;
-  delayMs?: number;
-  onUpdate?: (result: PrintServiceResponse, attempt: number) => void;
-}
-
 export interface RetryOptions {
-  /** Intentos totales (incluye el primero). */
+  /** Total attempts, including the first. */
   attempts?: number;
-  /** Espera inicial; se duplica en cada reintento. */
+  /** Initial wait; doubles on each retry. */
   baseDelayMs?: number;
   onAttempt?: (attempt: number, reason: string) => void;
 }
@@ -24,9 +20,10 @@ export interface UsePrinterResult {
   state: PrinterConnectionState;
   error: string | null;
   connect: (host: string, port?: number, options?: { demo?: boolean }) => Promise<void>;
-  simulator: Simulator | null;
   disconnect: () => void;
-  printText: (text: string) => Promise<PrintServiceResponse>;
+
+  /** Runs one of the recipes against the connected printer. */
+  runRecipe: (recipe: Recipe, ctx: RecipeContext) => Promise<PrintServiceResponse>;
   getStatus: () => Promise<PrintServiceResponse>;
 
   /** Live status, updated automatically while isMonitoring is true. */
@@ -35,45 +32,32 @@ export interface UsePrinterResult {
   startMonitoring: (intervalMs?: number) => void;
   stopMonitoring: () => void;
 
-  /**
-   * Prints a canvas (large print data — e.g. a rendered image/receipt
-   * layout) with an explicit job id, then automatically polls
-   * getPrintJobStatus() a few times to confirm the printer actually
-   * finished the job rather than just accepted the request.
-   */
-  printCanvasAndTrack: (
-    canvas: HTMLCanvasElement,
-    printjobid: string,
-    options?: PollJobStatusOptions
-  ) => Promise<PrintServiceResponse>;
-
-  /** Prints a 1D barcode (type per ePOS-Print XML spec — upc_a, ean13, code128, ...). */
-  printBarcode: (data: string, type: BarcodeType, hri?: Hri) => Promise<PrintServiceResponse>;
-  /** Prints a 2D symbol — QR code, PDF417, DataMatrix, Aztec, GS1 DataBar, ... */
-  printSymbol: (data: string, type: SymbolType, level?: Level) => Promise<PrintServiceResponse>;
-  /** Prints a small page-mode label: fixed area, positioned text, and a border rectangle. */
-  printLabel: (lines: string[]) => Promise<PrintServiceResponse>;
+  /** Simulated printer backing the connection, when connected in demo mode. */
+  simulator: Simulator | null;
+  /** Jobs the simulated printer has produced, oldest first. */
+  printedJobs: PrintedJob[];
 
   /**
-   * Ejecuta un trabajo reintentando automáticamente los casos que el manual
-   * marca como transitorios (impresora ocupada, cola llena, red caída) con
-   * backoff exponencial. Los errores que no se arreglan reintentando
-   * (falta de papel, XML inválido) se devuelven de inmediato.
+   * Runs a job, automatically retrying the cases the manual calls transient
+   * (printer busy, queue full, network down) with exponential backoff.
+   * Errors that retrying can't fix (out of paper, invalid XML) come back
+   * immediately.
    */
   printWithRetry: (
     job: () => Promise<PrintServiceResponse>,
     options?: RetryOptions
   ) => Promise<PrintServiceResponse>;
 
-  /** Intenta recuperar la impresora de un error recuperable (recover / reset). */
+  /** Tries to clear a recoverable printer error. */
   recover: () => Promise<PrintServiceResponse>;
 }
 
+const NOT_CONNECTED = 'No printer connected';
+
 /**
- * Thin React wrapper around EposHttpPrinter: keeps the instance in a ref
- * (it's not something React needs to re-render on) and exposes connection
- * state, live status monitoring, and print-job tracking as plain useState
- * so components can react to them normally.
+ * Thin React wrapper around EposHttpPrinter: keeps the instance in a ref (it's
+ * not something React needs to re-render on) and exposes connection state,
+ * live status monitoring and printed output as plain state.
  */
 export function usePrinter(): UsePrinterResult {
   const printerRef = useRef<EposHttpPrinter | null>(null);
@@ -82,12 +66,22 @@ export function usePrinter(): UsePrinterResult {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [status, setStatus] = useState<PrinterStatus | null>(null);
   const [simulator, setSimulator] = useState<Simulator | null>(null);
+  const [printedJobs, setPrintedJobs] = useState<PrintedJob[]>([]);
 
   const connect = useCallback(async (host: string, port?: number, { demo = false } = {}) => {
     setState('connecting');
     setError(null);
     try {
-      const sim = demo ? createSimulator({ initialState: { paper: 8 } }) : null;
+      // Demo mode swaps the transport for a simulated printer. Everything
+      // downstream — printing, status, monitoring, error handling — runs the
+      // exact same code paths as against real hardware. onPrint mirrors the
+      // simulator's job list into state, since it mutates its own array.
+      const sim = demo
+        ? createSimulator({
+            initialState: { paper: 8 },
+            onPrint: (job) => setPrintedJobs((prev) => [...prev, job]),
+          })
+        : null;
       const printer = new EposHttpPrinter(host, { port, fetch: sim?.fetch });
       await printer.connect();
       printerRef.current = printer;
@@ -109,45 +103,35 @@ export function usePrinter(): UsePrinterResult {
     setIsMonitoring(false);
     setStatus(null);
     setSimulator(null);
+    setPrintedJobs([]);
   }, []);
 
-  const printText = useCallback(async (text: string): Promise<PrintServiceResponse> => {
+  const runRecipe = useCallback(async (recipe: Recipe, ctx: RecipeContext) => {
     const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
-    return printer
-      .addTextAlign(printer.ALIGN_CENTER)
-      .addText(text)
-      .addFeedLine(1)
-      .addCut('feed')
-      .send();
+    if (!printer) throw new Error(NOT_CONNECTED);
+    return (await recipe.run(printer, ctx)) as PrintServiceResponse;
   }, []);
 
   const getStatus = useCallback(async (): Promise<PrintServiceResponse> => {
     const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
-    return printer.send();
+    if (!printer) throw new Error(NOT_CONNECTED);
+    const res = await printer.send();
+    // A one-off query updates the readout too, not just the monitoring loop —
+    // otherwise asking for the status appears to do nothing.
+    setStatus(decodePrinterStatus(res.status, res.battery));
+    return res;
   }, []);
 
-  // Printer monitoring: EposHttpPrinter already implements the polling loop
-  // (inherited from ePOSPrint.open()/close()) and fires onstatuschange /
-  // onbatterystatuschange as ASB bits change — we just decode those into
-  // PrinterStatus and mirror them into React state.
+  // EposHttpPrinter already implements the polling loop (inherited from
+  // ePOSPrint.open()/close()) and fires onstatuschange / onbatterystatuschange
+  // as ASB bits change — we just decode those into React state.
   const startMonitoring = useCallback((intervalMs = 3000) => {
     const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
+    if (!printer) throw new Error(NOT_CONNECTED);
     printer.interval = intervalMs;
-    printer.onstatuschange = () => {
-      setStatus(decodePrinterStatus(printer.status, printer.battery));
-    };
-    printer.onbatterystatuschange = () => {
-      setStatus(decodePrinterStatus(printer.status, printer.battery));
-    };
+    const sync = () => setStatus(decodePrinterStatus(printer.status, printer.battery));
+    printer.onstatuschange = sync;
+    printer.onbatterystatuschange = sync;
     printer.open();
     setIsMonitoring(true);
   }, []);
@@ -157,85 +141,9 @@ export function usePrinter(): UsePrinterResult {
     setIsMonitoring(false);
   }, []);
 
-  const printCanvasAndTrack = useCallback(
-    async (
-      canvas: HTMLCanvasElement,
-      printjobid: string,
-      { attempts = 4, delayMs = 1500, onUpdate }: PollJobStatusOptions = {}
-    ): Promise<PrintServiceResponse> => {
-      const printer = printerRef.current;
-      if (!printer) {
-        throw new Error('No hay impresora conectada');
-      }
-
-      let result = await printer.print(canvas, printjobid);
-      onUpdate?.(result, 0);
-
-      // Large print data (an image) may still be spooling/printing after
-      // the initial request is accepted — poll the job explicitly instead
-      // of just trusting the first response.
-      for (let attempt = 1; attempt <= attempts && !result.success; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        result = await printer.getPrintJobStatus(printjobid);
-        onUpdate?.(result, attempt);
-      }
-
-      return result;
-    },
-    []
-  );
-
-  const printBarcode = useCallback(async (data: string, type: BarcodeType, hri: Hri = 'below'): Promise<PrintServiceResponse> => {
-    const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
-    return printer
-      .addTextAlign(printer.ALIGN_CENTER)
-      .addBarcode(data, type, hri)
-      .addFeedLine(1)
-      .addCut('feed')
-      .send();
-  }, []);
-
-  const printSymbol = useCallback(async (data: string, type: SymbolType, level: Level = 'default'): Promise<PrintServiceResponse> => {
-    const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
-    return printer
-      .addTextAlign(printer.ALIGN_CENTER)
-      .addSymbol(data, type, level)
-      .addFeedLine(1)
-      .addCut('feed')
-      .send();
-  }, []);
-
-  // Page mode: a fixed-size area with explicitly positioned text and a
-  // border rectangle — the building blocks for a label layout, per the
-  // ePOS-Print XML manual's <page>/<area>/<direction>/<position> elements.
-  const printLabel = useCallback(async (lines: string[]): Promise<PrintServiceResponse> => {
-    const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
-    const width = 380;
-    const height = 40 + lines.length * 30;
-
-    printer.addPageBegin().addPageArea(0, 0, width, height).addPageDirection('left_to_right');
-    lines.forEach((line, i) => {
-      printer.addPagePosition(10, 20 + i * 30).addText(line);
-    });
-    printer.addPageRectangle(0, 0, width - 1, height - 1, 'thin').addPageEnd();
-
-    return printer.send();
-  }, []);
-
   const recover = useCallback(async (): Promise<PrintServiceResponse> => {
     const printer = printerRef.current;
-    if (!printer) {
-      throw new Error('No hay impresora conectada');
-    }
+    if (!printer) throw new Error(NOT_CONNECTED);
     return printer.recover();
   }, []);
 
@@ -252,28 +160,28 @@ export function usePrinter(): UsePrinterResult {
           last = await job();
           outcome = explainResponse(last);
         } catch (err) {
-          // No llegamos a hablar con la impresora (red, DNS, CORS): también
-          // es transitorio, así que entra en la misma política de reintento.
+          // We never reached the printer (network, DNS, CORS): also transient,
+          // so it falls under the same retry policy.
           outcome = explainError(err);
           if (attempt === attempts) throw err;
           last = null;
         }
 
         if (outcome.kind !== 'retry') {
-          // Éxito, o un error que reintentar no arregla (papel, tapa, XML
-          // inválido): devolver enseguida para que la UI actúe.
+          // Success, or a failure retrying won't fix (paper, cover, invalid
+          // XML): return right away so the UI can act.
           if (last) return last;
           throw new Error(outcome.meaning);
         }
 
         if (attempt < attempts) {
           const delay = baseDelayMs * 2 ** (attempt - 1);
-          onAttempt?.(attempt, `${outcome.code} — reintento en ${delay}ms`);
+          onAttempt?.(attempt, `${outcome.code} — retrying in ${delay}ms`);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
 
-      if (!last) throw new Error('Sin respuesta de la impresora tras varios intentos');
+      if (!last) throw new Error('No response from the printer after several attempts');
       return last;
     },
     []
@@ -283,18 +191,15 @@ export function usePrinter(): UsePrinterResult {
     state,
     error,
     connect,
-    simulator,
     disconnect,
-    printText,
+    runRecipe,
     getStatus,
     isMonitoring,
     status,
     startMonitoring,
     stopMonitoring,
-    printCanvasAndTrack,
-    printBarcode,
-    printSymbol,
-    printLabel,
+    simulator,
+    printedJobs,
     printWithRetry,
     recover,
   };

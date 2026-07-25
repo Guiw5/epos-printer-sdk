@@ -1,46 +1,50 @@
-import { FormEvent, useRef, useState } from 'react';
+import { FormEvent, useCallback, useRef, useState } from 'react';
 import type { BarcodeType, PrintServiceResponse, SymbolType } from 'epos-printer-sdk/http';
 import { usePrinter } from './usePrinter';
 import { useLog } from './useLog';
-import { drawDemoCanvas } from './demoCanvas';
 import { BARCODE_TYPES, SYMBOL_TYPES } from './barcodeOptions';
 import { explainResponse, explainError, KIND_LABEL, type Outcome } from './printOutcomes';
 import OutcomePanel from './OutcomePanel';
+import PaperRail from './PaperRail';
+import RecipeRow from './RecipeRow';
+import { RECIPES, type Recipe } from './recipes';
+import { t } from './strings';
 
 export interface PrinterCardProps {
   label: string;
   onRemove: () => void;
 }
 
-/** Everything needed to connect to and drive ONE printer. Fully
- * self-contained — its own connection, state and log — so multiple
- * printers are just multiple independent <PrinterCard>s. */
+/**
+ * Everything needed to connect to and drive ONE printer. Fully self-contained
+ * — its own connection, state and log — so multiple printers are just
+ * multiple independent <PrinterCard>s.
+ */
 export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
   const {
     state,
     error,
     connect,
     disconnect,
-    printText,
     getStatus,
     isMonitoring,
     status,
     startMonitoring,
     stopMonitoring,
-    printCanvasAndTrack,
-    printBarcode,
-    printSymbol,
-    printLabel,
+    runRecipe,
     printWithRetry,
     recover,
+    printedJobs,
   } = usePrinter();
   const { lines, log } = useLog();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  /** Último trabajo ejecutado, para poder reintentarlo desde el panel. */
+  /** Last job run, so the outcome panel can retry it. */
   const lastJobRef = useRef<(() => Promise<PrintServiceResponse>) | null>(null);
 
   const [address, setAddress] = useState('');
   const [port, setPort] = useState(443);
+  // On the public deploy there is no reachable printer: start in demo mode.
+  const [demo, setDemo] = useState(!['localhost', '127.0.0.1'].includes(window.location.hostname));
   const [busy, setBusy] = useState(false);
   const [barcodeType, setBarcodeType] = useState<BarcodeType>('code128');
   const [barcodeData, setBarcodeData] = useState('0123456789');
@@ -51,73 +55,79 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
 
   async function handleConnect(event: FormEvent) {
     event.preventDefault();
-    log(`Conectando a ${address}:${port}...`);
+    log(demo ? t.logConnectingSim : t.logConnecting(address, port));
     try {
-      await connect(address, port);
-      log('Conectado. Impresora lista.');
+      await connect(demo ? 'simulated-printer' : address, port, { demo });
+      log(demo ? t.logConnectedSim : t.logConnected);
     } catch (err) {
-      log(`No se pudo conectar: ${err instanceof Error ? err.message : String(err)}`);
+      log(t.logConnectFailed(err instanceof Error ? err.message : String(err)));
     }
   }
 
   function handleDisconnect() {
     disconnect();
-    log('Desconectado.');
+    log(t.logDisconnected);
   }
 
   /**
-   * Único punto por el que pasan TODOS los trabajos: reintenta lo
-   * transitorio, traduce el resultado a un diagnóstico con acción
-   * recomendada, y lo deja disponible para reintentar a mano.
+   * The single path every job takes: retry what the manual calls transient,
+   * translate the result into a diagnosis with a recommended action, and keep
+   * it around so it can be retried by hand.
    */
-  async function runJob(description: string, job: () => Promise<PrintServiceResponse>) {
-    setBusy(true);
-    lastJobRef.current = job;
-    log(`${description}...`);
-    try {
-      const result = await printWithRetry(job, {
-        onAttempt: (attempt, reason) => log(`Intento ${attempt} falló: ${reason}`),
-      });
-      const diagnosis = explainResponse(result);
-      setOutcome(diagnosis);
-      log(`${diagnosis.code} [${KIND_LABEL[diagnosis.kind]}] — ${diagnosis.action}`);
-      return result;
-    } catch (err) {
-      const diagnosis = explainError(err);
-      setOutcome(diagnosis);
-      log(`${diagnosis.code} — ${diagnosis.meaning}`);
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }
+  const runJob = useCallback(
+    async (description: string, job: () => Promise<PrintServiceResponse>) => {
+      setBusy(true);
+      lastJobRef.current = job;
+      log(t.logRunning(description));
+      try {
+        const result = await printWithRetry(job, {
+          onAttempt: (attempt, reason) => log(t.logAttemptFailed(attempt, reason)),
+        });
+        const diagnosis = explainResponse(result);
+        setOutcome(diagnosis);
+        log(`${diagnosis.code} [${KIND_LABEL[diagnosis.kind]}] — ${diagnosis.action}`);
+        return result;
+      } catch (err) {
+        const diagnosis = explainError(err);
+        setOutcome(diagnosis);
+        log(`${diagnosis.code} — ${diagnosis.meaning}`);
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [log, printWithRetry]
+  );
 
-  function handlePrint() {
-    return runJob('Enviando recibo de prueba', () => printText(`${label}\n`));
-  }
+  const handleRunRecipe = useCallback(
+    (recipe: Recipe) => {
+      void runJob(recipe.title, () =>
+        runRecipe(recipe, { label, barcodeData, barcodeType, symbolData, symbolType })
+      );
+    },
+    [runJob, runRecipe, label, barcodeData, barcodeType, symbolData, symbolType]
+  );
 
   async function handleStatus() {
-    log('Consultando estado...');
     try {
       const result = await getStatus();
-      log(`Estado: 0x${result.status.toString(16)} — batería: ${result.battery}`);
-      const diagnosis = explainResponse(result);
-      setOutcome(diagnosis);
+      log(t.logStatus(result.status.toString(16), result.battery));
+      setOutcome(explainResponse(result));
     } catch (err) {
       setOutcome(explainError(err));
-      log(`Error al consultar estado: ${err instanceof Error ? err.message : String(err)}`);
+      log(t.logConnectFailed(err instanceof Error ? err.message : String(err)));
     }
   }
 
   async function handleRetryLast() {
     const job = lastJobRef.current;
     if (!job) return;
-    await runJob('Reintentando el último trabajo', job);
+    await runJob(t.logRetryLast, job);
   }
 
   async function handleRecover() {
     setBusy(true);
-    log('Ejecutando recover()...');
+    log(t.logRecovering);
     try {
       const result = await recover();
       const diagnosis = explainResponse(result);
@@ -125,7 +135,7 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
       log(`recover() → ${diagnosis.code}. ${diagnosis.action}`);
     } catch (err) {
       setOutcome(explainError(err));
-      log(`recover() falló: ${err instanceof Error ? err.message : String(err)}`);
+      log(`recover() failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
@@ -134,188 +144,212 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
   function handleToggleMonitoring() {
     if (isMonitoring) {
       stopMonitoring();
-      log('Monitoreo detenido.');
+      log(t.logMonitoringOff);
     } else {
       startMonitoring(3000);
-      log('Monitoreo iniciado (cada 3s).');
+      log(t.logMonitoringOn);
     }
   }
 
-  function handlePrintCanvas() {
-    const jobId = `canvas-${Date.now()}`;
-    return runJob(`Enviando imagen (job ${jobId})`, () =>
-      printCanvasAndTrack(drawDemoCanvas(), jobId, {
-        onUpdate: (r, attempt) => {
-          log(attempt === 0 ? `Job aceptado: success=${r.success} code="${r.code}"` : `Consulta de job #${attempt}: success=${r.success}`);
-        },
-      })
-    );
-  }
-
-  function handlePrintBarcode() {
-    return runJob(`Imprimiendo código de barras (${barcodeType})`, () => printBarcode(barcodeData, barcodeType));
-  }
-
-  function handlePrintSymbol() {
-    return runJob(`Imprimiendo símbolo 2D (${symbolType})`, () => printSymbol(symbolData, symbolType));
-  }
-
-  function handlePrintLabel() {
-    return runJob('Imprimiendo etiqueta (page mode)', () =>
-      printLabel([label, new Date().toLocaleString(), 'Etiqueta de prueba'])
-    );
-  }
+  // Derived during render, not in an effect — the LEDs are just a view of the
+  // last status we got back.
+  const leds = [
+    { label: t.ledReady, on: !isConnected ? '' : status?.online === false ? 'bad' : 'ok' },
+    {
+      label: t.ledPaper,
+      on: !status ? '' : status.paper === 'end' ? 'bad' : status.paper === 'near_end' ? 'warn' : 'ok',
+    },
+    { label: t.ledCover, on: !status ? '' : status.coverOpen ? 'bad' : 'ok' },
+    { label: t.ledDrawer, on: !status ? '' : status.drawerOpen ? 'warn' : 'ok' },
+  ];
 
   return (
-    <section className="printer-card">
-      <div className="printer-card-header">
-        <h2>{label}</h2>
-        <button type="button" className="remove-btn" onClick={onRemove}>
-          Quitar
-        </button>
-      </div>
-
-      <section className="card">
-        <h3>Conexión</h3>
-        <form onSubmit={handleConnect}>
-          <label>
-            Dirección
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="192.168.1.100 o printer.example.com"
-              disabled={isConnected}
-              required
-            />
-          </label>
-          <label>
-            Puerto
-            <input type="number" value={port} onChange={(e) => setPort(Number(e.target.value))} disabled={isConnected} required />
-          </label>
-          <div className="actions">
-            <button type="submit" disabled={isConnected || state === 'connecting'}>
-              {state === 'connecting' ? 'Conectando...' : 'Conectar'}
-            </button>
-            <button type="button" onClick={handleDisconnect} disabled={!isConnected}>
-              Desconectar
+    <section className="bench">
+      <div>
+        <div className="machine">
+          <div className="machine-top">
+            <h2>{label}</h2>
+            <div className="leds">
+              {leds.map((l) => (
+                <span key={l.label} className="led" data-on={l.on}>
+                  {l.label}
+                </span>
+              ))}
+            </div>
+            <button type="button" className="ghost" onClick={onRemove} aria-label={`${t.remove} ${label}`}>
+              {t.remove}
             </button>
           </div>
-        </form>
-        {error && <p className="error">{error}</p>}
-      </section>
 
-      <section className="card">
-        <h3>Impresión / estado</h3>
-        <div className="actions">
-          <button type="button" onClick={handlePrint} disabled={!isConnected || busy}>
-            Imprimir recibo de prueba
-          </button>
-          <button type="button" onClick={handleStatus} disabled={!isConnected || busy}>
-            Consultar estado
-          </button>
-          <button type="button" onClick={handleToggleMonitoring} disabled={!isConnected}>
-            {isMonitoring ? 'Detener monitoreo' : 'Iniciar monitoreo'}
-          </button>
+          <div className="machine-body">
+            <div className="panel">
+              <h3>{t.connection}</h3>
+              <form onSubmit={handleConnect}>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={demo}
+                    onChange={(e) => setDemo(e.target.checked)}
+                    disabled={isConnected}
+                  />
+                  {t.demoMode}
+                </label>
+                <div className="field-row">
+                  <label>
+                    {t.address}
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder={demo ? 'simulated-printer' : '192.168.1.100'}
+                      disabled={isConnected || demo}
+                      required={!demo}
+                    />
+                  </label>
+                  <label>
+                    {t.port}
+                    <input
+                      type="number"
+                      value={port}
+                      onChange={(e) => setPort(Number(e.target.value))}
+                      disabled={isConnected || demo}
+                      required={!demo}
+                    />
+                  </label>
+                  <div className="actions">
+                    <button
+                      type="submit"
+                      className="primary"
+                      disabled={isConnected || state === 'connecting'}
+                    >
+                      {state === 'connecting' ? t.connecting : t.connect}
+                    </button>
+                    <button type="button" onClick={handleDisconnect} disabled={!isConnected}>
+                      {t.disconnect}
+                    </button>
+                  </div>
+                </div>
+              </form>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
+
+            <div className="panel">
+              <h3>{t.inputs}</h3>
+              <div className="field-row">
+                <label>
+                  {t.barcode}
+                  <select
+                    value={barcodeType}
+                    onChange={(e) => setBarcodeType(e.target.value as BarcodeType)}
+                    disabled={!isConnected}
+                  >
+                    {BARCODE_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t.data}
+                  <input
+                    type="text"
+                    value={barcodeData}
+                    onChange={(e) => setBarcodeData(e.target.value)}
+                    disabled={!isConnected}
+                  />
+                </label>
+              </div>
+              <div className="field-row" style={{ marginTop: '0.6rem' }}>
+                <label>
+                  {t.symbol}
+                  <select
+                    value={symbolType}
+                    onChange={(e) => setSymbolType(e.target.value as SymbolType)}
+                    disabled={!isConnected}
+                  >
+                    {SYMBOL_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t.data}
+                  <input
+                    type="text"
+                    value={symbolData}
+                    onChange={(e) => setSymbolData(e.target.value)}
+                    disabled={!isConnected}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="panel">
+              <h3>{t.recipes}</h3>
+              <div className="recipe-list">
+                {RECIPES.map((recipe) => (
+                  <RecipeRow
+                    key={recipe.id}
+                    recipe={recipe}
+                    disabled={!isConnected || busy}
+                    onRun={handleRunRecipe}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="panel">
+              <h3>{t.status}</h3>
+              <div className="actions">
+                <button type="button" onClick={handleStatus} disabled={!isConnected || busy}>
+                  {t.checkStatus}
+                </button>
+                <button type="button" onClick={handleToggleMonitoring} disabled={!isConnected}>
+                  {isMonitoring ? t.stopMonitoring : t.startMonitoring}
+                </button>
+              </div>
+              {status ? (
+                <dl className="readout" style={{ marginTop: '0.7rem' }}>
+                  <div>
+                    <dt>{t.online}</dt>
+                    <dd>{status.online ? t.yes : t.no}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.cover}</dt>
+                    <dd>{status.coverOpen ? t.open : t.closed}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.paper}</dt>
+                    <dd>{status.paper}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.drawer}</dt>
+                    <dd>{status.drawerOpen ? t.open : t.closed}</dd>
+                  </div>
+                </dl>
+              ) : null}
+            </div>
+
+            <OutcomePanel
+              last={outcome}
+              onRetry={handleRetryLast}
+              onRecover={handleRecover}
+              busy={busy}
+              connected={isConnected}
+            />
+
+            <div className="panel">
+              <h3>{t.activity}</h3>
+              <pre className="log">{lines.join('\n')}</pre>
+            </div>
+          </div>
         </div>
-        {status && (
-          <dl className="status-grid">
-            <dt>En línea</dt>
-            <dd>{status.online ? 'sí' : 'no'}</dd>
-            <dt>Tapa</dt>
-            <dd>{status.coverOpen ? 'abierta' : 'cerrada'}</dd>
-            <dt>Papel</dt>
-            <dd>{status.paper}</dd>
-            <dt>Cajón</dt>
-            <dd>{status.drawerOpen ? 'abierto' : 'cerrado'}</dd>
-            <dt>Batería</dt>
-            <dd>{status.battery}</dd>
-          </dl>
-        )}
-      </section>
+      </div>
 
-      <section className="card">
-        <h3>Código de barras / QR</h3>
-        <label>
-          Tipo de código de barras
-          <select value={barcodeType} onChange={(e) => setBarcodeType(e.target.value as BarcodeType)} disabled={!isConnected}>
-            {BARCODE_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Datos
-          <input type="text" value={barcodeData} onChange={(e) => setBarcodeData(e.target.value)} disabled={!isConnected} />
-        </label>
-        <div className="actions">
-          <button type="button" onClick={handlePrintBarcode} disabled={!isConnected || busy}>
-            Imprimir código de barras
-          </button>
-        </div>
-
-        <label style={{ marginTop: '1rem' }}>
-          Tipo de símbolo 2D
-          <select value={symbolType} onChange={(e) => setSymbolType(e.target.value as SymbolType)} disabled={!isConnected}>
-            {SYMBOL_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Datos
-          <input type="text" value={symbolData} onChange={(e) => setSymbolData(e.target.value)} disabled={!isConnected} />
-        </label>
-        <div className="actions">
-          <button type="button" onClick={handlePrintSymbol} disabled={!isConnected || busy}>
-            Imprimir símbolo 2D
-          </button>
-        </div>
-      </section>
-
-      <section className="card">
-        <h3>Imagen (canvas) con seguimiento de job</h3>
-        <p className="hint">
-          Renderiza un canvas y lo imprime — datos de impresión más grandes que un texto simple. Consulta
-          automáticamente <code>getPrintJobStatus()</code> hasta confirmar que el trabajo se completó.
-        </p>
-        <div className="actions">
-          <button type="button" onClick={handlePrintCanvas} disabled={!isConnected || busy}>
-            Imprimir imagen de prueba
-          </button>
-        </div>
-      </section>
-
-      <section className="card">
-        <h3>Etiqueta (page mode)</h3>
-        <p className="hint">
-          Usa <code>&lt;page&gt;</code>/<code>&lt;area&gt;</code>/<code>&lt;position&gt;</code> para un layout de
-          ancho y alto fijos con texto posicionado y un borde — el modo de las etiquetas, distinto del flujo
-          secuencial de un recibo normal.
-        </p>
-        <div className="actions">
-          <button type="button" onClick={handlePrintLabel} disabled={!isConnected || busy}>
-            Imprimir etiqueta de prueba
-          </button>
-        </div>
-      </section>
-
-      <OutcomePanel
-        last={outcome}
-        onRetry={handleRetryLast}
-        onRecover={handleRecover}
-        busy={busy}
-        connected={isConnected}
-      />
-
-      <section className="card">
-        <h3>Log</h3>
-        <pre className="log">{lines.join('\n')}</pre>
-      </section>
+      <PaperRail jobs={printedJobs} />
     </section>
   );
 }

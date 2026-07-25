@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PrinterCard from './PrinterCard';
+import { t } from './strings';
 
 interface PrinterSlot {
   id: number;
@@ -9,10 +10,10 @@ interface PrinterSlot {
 let nextId = 1;
 
 export default function App() {
-  const [printers, setPrinters] = useState<PrinterSlot[]>([{ id: nextId++, label: 'Impresora 1' }]);
+  const [printers, setPrinters] = useState<PrinterSlot[]>([{ id: nextId++, label: 'Printer 1' }]);
 
   function addPrinter() {
-    setPrinters((prev) => [...prev, { id: nextId++, label: `Impresora ${prev.length + 1}` }]);
+    setPrinters((prev) => [...prev, { id: nextId++, label: `Printer ${prev.length + 1}` }]);
   }
 
   function removePrinter(id: number) {
@@ -20,22 +21,29 @@ export default function App() {
   }
 
   return (
-    <main className="app">
-      <h1>epos-printer-sdk — ejemplo React</h1>
-      <p className="subtitle">
-        Casos de uso con el hook <code>usePrinter</code> (<code>epos-printer-sdk/http</code>). Cada tarjeta es una
-        impresora independiente — su propia conexión, estado y log — para probar el manejo de varias a la vez.
-      </p>
-
-      <div className="actions" style={{ marginBottom: '1.5rem' }}>
-        <button type="button" onClick={addPrinter}>
-          + Agregar impresora
-        </button>
-      </div>
+    <div className="shell">
+      <header className="masthead">
+        <h1>epos-printer-sdk</h1>
+        <p>{t.tagline}</p>
+        <nav className="masthead-links">
+          <a href="https://github.com/Guiw5/epos-printer-sdk" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+          <a href="https://www.npmjs.com/package/epos-printer-sdk" target="_blank" rel="noreferrer">
+            npm
+          </a>
+        </nav>
+      </header>
 
       {printers.map((p) => (
         <PrinterCard key={p.id} label={p.label} onRemove={() => removePrinter(p.id)} />
       ))}
-    </main>
+
+      <div className="actions" style={{ marginTop: '1.5rem' }}>
+        <button type="button" className="ghost" onClick={addPrinter}>
+          {t.addPrinter}
+        </button>
+      </div>
+    </div>
   );
 }
