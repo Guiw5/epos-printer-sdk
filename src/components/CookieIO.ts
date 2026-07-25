@@ -2,13 +2,17 @@ export class CookieIO {
   private readonly TAG = "EPSON_EPOSDEVICE_CLIENTID";
   private readonly EXPIRES_MINUTES = 5;
 
+  private get available(): boolean {
+    return typeof document !== 'undefined' && typeof location !== 'undefined';
+  }
+
   /**
    * Writes a value to cookies associated with an address and the current document title.
    * @param value - The value to store.
    * @param address - The associated address.
    */
   public writeId(value: string, address: string): void {
-    if (!address) return;
+    if (!address || !this.available) return;
 
     const encodedAddress = encodeURIComponent(address);
     const encodedTitle = encodeURIComponent(document.title);
@@ -24,7 +28,7 @@ export class CookieIO {
    * @returns The stored ID or an empty string if not found.
    */
   public readId(address: string): string {
-    if (!address) return "";
+    if (!address || !this.available) return "";
 
     const encodedAddress = encodeURIComponent(address);
     const encodedTitle = encodeURIComponent(document.title);

@@ -78,7 +78,7 @@ export class Printer extends CanvasPrint {
     // otherwise consecutive prints resend the previous content.
     this.setXmlString('');
     try {
-      const res = await postPrintRequest(address, soap, this.timeout);
+      const res = await postPrintRequest(address, soap, this.timeout, undefined, this.fetchImpl);
       this.fireReceiveEvent(res.success, res.code, res.status, res.battery, res.printjobid, 0);
       return res;
     } catch (err) {
@@ -214,7 +214,7 @@ export class Printer extends CanvasPrint {
     const soap = buildSoapEnvelope(new ePOSBuilder().toString());
 
     try {
-      const res = await postPrintRequest(this.address, soap, 10000);
+      const res = await postPrintRequest(this.address, soap, 10000, undefined, this.fetchImpl);
       this.fireStatusEvent(this, res.status, res.battery);
     } catch {
       this.fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);

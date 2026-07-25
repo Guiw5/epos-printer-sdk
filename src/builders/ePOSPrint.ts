@@ -1,6 +1,6 @@
 import { SendParams } from '../types';
 import { ePOSBuilder } from './ePOSBuilder';
-import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type PrintServiceResponse } from './httpTransport';
+import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type FetchLike, type PrintServiceResponse } from './httpTransport';
 
 type EventHandler = (event?: any, sq?: number) => void;
 
@@ -33,6 +33,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   drawerOpenLevel: number;
   intervalid: number | NodeJS.Timeout | null = null;
   intervalController: AbortController | null = null;
+  fetchImpl?: FetchLike;
 
   // ASB Constants
   ASB_NO_RESPONSE = 1;
@@ -218,7 +219,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     }
 
     try {
-      let res = await postPrintRequest(address, soap, this.timeout, controller.signal);
+      let res = await postPrintRequest(address, soap, this.timeout, controller.signal, this.fetchImpl);
       // Same normalization the vendor applies inside its onreceive path —
       // done here so the resolved promise and the legacy callback report
       // the identical code (apps switch on ERROR_DEVICE_BUSY).

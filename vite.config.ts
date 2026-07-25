@@ -14,7 +14,10 @@ export default defineConfig({
       // socket.io-client, ePOSDevice, or the crypto modules.
       entry: {
         index: 'src/index.ts',
-        http: 'src/http.ts'
+        http: 'src/http.ts',
+        // Simulated printer: dev/test/demo only, so it stays out of the
+        // entries a real integration loads.
+        simulator: 'src/simulator.ts'
       },
       formats: ['es']
     },

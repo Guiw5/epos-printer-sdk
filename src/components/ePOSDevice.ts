@@ -88,13 +88,14 @@ export class ePOSDevice {
     this.cookieIo = new CookieIO();
     this.gbox = new SocketGarbageBox();
 
-    // Window events
-    window.onbeforeunload = () => {
-      this.disconnect();
-    };
-    window.onpagehide = () => {
-      this.disconnect();
-    };
+    if (typeof window !== 'undefined') {
+      window.onbeforeunload = () => {
+        this.disconnect();
+      };
+      window.onpagehide = () => {
+        this.disconnect();
+      };
+    }
   }
 
   getEposprint(): boolean {
@@ -295,11 +296,20 @@ export class ePOSDevice {
   }
 
   private async connectBySocketIo(timeout: number): Promise<void> {
-    // Loaded lazily: socket.io-client is a legacy CJS bundle that only the
-    // socket transport needs. Keeping it out of the module's static import
-    // graph means the HTTP-only path (the recommended one — see README)
-    // never has to load it at all.
-    const { default: io } = await import('socket.io-client');
+    // Loaded lazily, and declared as an OPTIONAL peer dependency: this legacy
+    // CJS bundle is only needed by the socket transport, and it drags in
+    // transitive packages with known CVEs. Keeping it optional means the
+    // HTTP-only path — the recommended one, and the only one a plain TM-T88V
+    // supports — installs with zero dependencies.
+    let io: { connect(host: string, options?: Record<string, unknown>): LegacySocket };
+    try {
+      io = (await import('socket.io-client')).default;
+    } catch {
+      throw new Error(
+        "The ePOS-Device socket transport needs the optional peer dependency 'socket.io-client@0.8.7'. " +
+        "Install it, or use the HTTP transport (EposHttpPrinter / { eposprint: true }), which most printers support."
+      );
+    }
     const url = this.conection.getSocketIoURL();
     this.socket = io.connect(url, {
       reconnect: false,

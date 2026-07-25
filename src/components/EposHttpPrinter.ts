@@ -1,5 +1,5 @@
 import { CanvasPrint } from "./CanvasPrint";
-import type { PrintServiceResponse } from "../builders/httpTransport";
+import type { FetchLike, PrintServiceResponse } from "../builders/httpTransport";
 
 export interface EposHttpPrinterOptions {
   /** Port used only to pick http vs https — never appended to request URLs. Default: 443 (https). */
@@ -8,6 +8,8 @@ export interface EposHttpPrinterOptions {
   deviceId?: string;
   /** Request timeout in ms. Default: 10000. */
   timeout?: number;
+  /** Swap the transport. Pass a simulator (see `epos-printer-sdk/simulator`) */
+  fetch?: FetchLike;
 }
 
 /**
@@ -32,6 +34,7 @@ export class EposHttpPrinter extends CanvasPrint {
     const deviceId = options.deviceId ?? 'local_printer';
     super(`${protocol}://${host}/cgi-bin/epos/service.cgi?devid=${deviceId}&timeout=10000`);
     this.timeout = options.timeout ?? 10000;
+    this.fetchImpl = options.fetch;
   }
 
   /** Confirms the printer is reachable. Throws if it isn't. */

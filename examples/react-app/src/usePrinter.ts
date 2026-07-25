@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { EposHttpPrinter, decodePrinterStatus } from 'epos-printer-sdk/http';
+import { createSimulator, type Simulator } from 'epos-printer-sdk/simulator';
 import type { PrintServiceResponse, PrinterStatus, BarcodeType, Hri, SymbolType, Level } from 'epos-printer-sdk/http';
 import { explainResponse, explainError, type Outcome } from './printOutcomes';
 
@@ -22,7 +23,8 @@ export interface RetryOptions {
 export interface UsePrinterResult {
   state: PrinterConnectionState;
   error: string | null;
-  connect: (host: string, port?: number) => Promise<void>;
+  connect: (host: string, port?: number, options?: { demo?: boolean }) => Promise<void>;
+  simulator: Simulator | null;
   disconnect: () => void;
   printText: (text: string) => Promise<PrintServiceResponse>;
   getStatus: () => Promise<PrintServiceResponse>;
@@ -79,14 +81,17 @@ export function usePrinter(): UsePrinterResult {
   const [error, setError] = useState<string | null>(null);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [status, setStatus] = useState<PrinterStatus | null>(null);
+  const [simulator, setSimulator] = useState<Simulator | null>(null);
 
-  const connect = useCallback(async (host: string, port?: number) => {
+  const connect = useCallback(async (host: string, port?: number, { demo = false } = {}) => {
     setState('connecting');
     setError(null);
     try {
-      const printer = new EposHttpPrinter(host, { port });
+      const sim = demo ? createSimulator({ initialState: { paper: 8 } }) : null;
+      const printer = new EposHttpPrinter(host, { port, fetch: sim?.fetch });
       await printer.connect();
       printerRef.current = printer;
+      setSimulator(sim);
       setState('connected');
     } catch (err) {
       printerRef.current = null;
@@ -103,6 +108,7 @@ export function usePrinter(): UsePrinterResult {
     setError(null);
     setIsMonitoring(false);
     setStatus(null);
+    setSimulator(null);
   }, []);
 
   const printText = useCallback(async (text: string): Promise<PrintServiceResponse> => {
@@ -277,6 +283,7 @@ export function usePrinter(): UsePrinterResult {
     state,
     error,
     connect,
+    simulator,
     disconnect,
     printText,
     getStatus,

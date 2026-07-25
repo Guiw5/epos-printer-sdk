@@ -34,6 +34,13 @@ export function buildSoapEnvelope(body: string, printjobid?: string): string {
 const inFlightByEndpoint = new Map<string, Promise<void>>();
 
 /**
+ * Swappable fetch, so callers can drive the transport with something other
+ * than the network i.e. a simulator (see `epos-printer-sdk/simulator`), a mock in
+ * tests, or a custom client. Defaults to global `fetch`.
+ */
+export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
+
+/**
  * POSTs a SOAP-wrapped ePOS-Print request and parses the <response> element
  * back into a plain object. Rejects with PrintServiceError on network
  * failure, timeout, a non-200 response, or a response with no <response>
@@ -47,7 +54,8 @@ export async function postPrintRequest(
   address: string,
   soap: string,
   timeoutMs: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  fetchImpl?: FetchLike
 ): Promise<PrintServiceResponse> {
   const previous = inFlightByEndpoint.get(address);
 
@@ -63,7 +71,7 @@ export async function postPrintRequest(
       // result or error.
       await previous.catch(() => undefined);
     }
-    return await sendPrintRequest(address, soap, timeoutMs, signal);
+    return await sendPrintRequest(address, soap, timeoutMs, signal, fetchImpl);
   } finally {
     markDone();
     if (inFlightByEndpoint.get(address) === done) {
@@ -76,8 +84,10 @@ async function sendPrintRequest(
   address: string,
   soap: string,
   timeoutMs: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  fetchImpl?: FetchLike
 ): Promise<PrintServiceResponse> {
+  const doFetch: FetchLike = fetchImpl ?? ((url, init) => fetch(url, init));
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort);
@@ -86,7 +96,7 @@ async function sendPrintRequest(
   try {
     let res: Response;
     try {
-      res = await fetch(address, {
+      res = await doFetch(address, {
         method: 'POST',
         headers: {
           'Content-Type': 'text/xml; charset=utf-8',
