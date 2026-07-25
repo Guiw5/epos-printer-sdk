@@ -31,8 +31,9 @@ Epson distribuye su SDK ePOS como un IIFE minificado pensado
 para usarse en un `<script>`: sin módulos, sin tipos, sin tree-shaking y con
 una API íntegramente basada en callbacks. Este paquete es un reemplazo moderno.
 
-- **Sin dependencias, ~7 KB gzip.** El entry point HTTP no arrastra nada: ni
-  `lodash`, ni `dayjs`, ni cripto empaquetada, ni Socket.IO.
+- **Cero dependencias, ~7 KB gzip.** `npm install epos-printer-sdk` no arrastra
+  absolutamente nada: ni `lodash`, ni `dayjs`, ni cripto empaquetada, ni
+  Socket.IO — y `npm audit` reporta 0 vulnerabilidades.
 - **Agnóstica del framework, y corre en el servidor.** Usa `fetch` a secas, así
   que funciona en React, Vue, Svelte o vanilla — *y* en Node 18+ (API routes,
   SSR, scripts, workers de cola). No es un wrapper solo para React.
@@ -55,11 +56,15 @@ una API íntegramente basada en callbacks. Este paquete es un reemplazo moderno.
 ## Instalación
 
 ```bash
-npm install epos-printer-sdk
+pnpm add epos-printer-sdk
 ```
 
 ```bash
-pnpm add epos-printer-sdk
+yarn add epos-printer-sdk
+```
+
+```bash
+npm install epos-printer-sdk
 ```
 
 Requiere **Node 18+** (por `fetch` nativo) o cualquier navegador moderno.
@@ -307,7 +312,17 @@ transporte por socket:
 | Import | Contenido | Tamaño (gzip) |
 |---|---|---|
 | `epos-printer-sdk/http` | `EposHttpPrinter`, `decodePrinterStatus`, tipos | **~7 KB** |
-| `epos-printer-sdk` | Todo, incluido `ePOSDevice` + gestión de dispositivos | ~30 KB (+31 KB de `socket.io-client`, cargado en forma diferida solo si abrís una conexión por socket) |
+| `epos-printer-sdk` | Todo, incluido `ePOSDevice` + gestión de dispositivos | ~30 KB (+31 KB de `socket.io-client`, solo si lo instalás — ver abajo) |
+
+El `socket.io-client@0.8.7` que necesita el transporte por socket es una
+**peer dependency opcional**: no se instala por defecto, porque arrastra
+paquetes transitivos con CVEs conocidas y la mayoría de las impresoras
+(incluida cualquier TM-T88V común) ni siquiera hospedan ese servicio.
+Instalalo explícitamente solo si necesitás sockets:
+
+```bash
+pnpm add socket.io-client@0.8.7
+```
 
 `sideEffects: false` más un mapa de `exports` correcto, así que
 Vite/webpack/Rollup/esbuild hacen tree-shaking sin configuración extra.
@@ -387,6 +402,10 @@ oficial.
   inversa del SDK, los bugs encontrados en el bundle original, y qué está
   verificado frente a qué está asumido (en inglés).
 - [Changelog](CHANGELOG.md)
+- [llms.txt](llms.txt) — resumen legible por máquinas de la API y sus
+  sutilezas, para asistentes de código. También servido en
+  `https://unpkg.com/epos-printer-sdk/llms.txt`.
+- [AGENTS.md](AGENTS.md) — convenciones para agentes y humanos que contribuyan.
 
 ## Contribuir
 

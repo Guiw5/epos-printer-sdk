@@ -1,6 +1,5 @@
 {
   "name": "epos-printer-sdk",
-  "private": true,
   "version": "0.2.0",
   "description": "Modern TypeScript library port of Epson's ePOS SDK, transcription from vendor's IIFE bundle. Ships EposHttpPrinter — a lightweight, socket-free, fully async/await client for the ePOS-Print HTTP web service (built for the TM-T88V) — plus the full callback-based SDK surface (device management, WebSocket transport) for advanced use.",
   "keywords": [
@@ -28,25 +27,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Guiw5/epos-printer-v2.git"
+    "url": "git+https://github.com/Guiw5/epos-printer-sdk.git"
   },
-  "homepage": "https://github.com/Guiw5/epos-printer-v2#readme",
+  "homepage": "https://github.com/Guiw5/epos-printer-sdk#readme",
   "bugs": {
-    "url": "https://github.com/Guiw5/epos-printer-v2/issues"
-  },
-  "engines": {
-    "node": ">=18"
+    "url": "https://github.com/Guiw5/epos-printer-sdk/issues"
   },
   "type": "module",
-  "sideEffects": false,
-  "publishConfig": {
-    "access": "public"
-  },
-  "files": [
-    "dist",
-    "LICENSE",
-    "README.es.md"
-  ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -58,7 +45,24 @@
     "./http": {
       "types": "./dist/http.d.ts",
       "default": "./dist/http.js"
+    },
+    "./simulator": {
+      "types": "./dist/simulator.d.ts",
+      "default": "./dist/simulator.js"
     }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.es.md",
+    "llms.txt"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "vite",
@@ -71,8 +75,13 @@
     "test:ui": "vitest --ui",
     "test:debug": "vitest --inspect-brk --no-file-parallelism --test-timeout=0"
   },
-  "dependencies": {
+  "peerDependencies": {
     "socket.io-client": "0.8.7"
+  },
+  "peerDependenciesMeta": {
+    "socket.io-client": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",
@@ -87,6 +96,8 @@
     "typedoc": "^0.26.7",
     "typescript": "^5.5.3",
     "vite": "^6.2.0",
-    "vitest": "^3.0.9"
-  }
+    "vitest": "^3.0.9",
+    "socket.io-client": "0.8.7"
+  },
+  "private": true
 }

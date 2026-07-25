@@ -44,6 +44,11 @@ describe('ePOSBuilder', () => {
       expect(body(b)).toBe('<text reverse="true" em="true"/>');
     });
 
+    it('addTextLang escapes the attribute value (the vendor interpolates it raw — the one caller-data injection point)', () => {
+      b.addTextLang('en" size="9');
+      expect(body(b)).toBe('<text lang="en&quot; size=&quot;9"/>');
+    });
+
     it('addTextPosition/addTextVPosition quote the attribute value (regression: used to emit x=5 unquoted)', () => {
       b.addTextPosition(5).addTextVPosition(10);
       expect(body(b)).toBe('<text x="5"/><text y="10"/>');

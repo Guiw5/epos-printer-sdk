@@ -32,7 +32,7 @@ export class ePOSBuilder {
   }
 
   addTextLang(lang: string): this {
-    this.message += `<text lang="${lang}"/>`;
+    this.message += `<text lang="${escapeMarkup(lang)}"/>`;
     return this;
   }
 

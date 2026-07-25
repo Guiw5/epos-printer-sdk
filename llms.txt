@@ -1,0 +1,81 @@
+# epos-printer-sdk
+
+> TypeScript library for printing to Epson TM receipt printers (TM-T88V and
+> compatible) over the ePOS-Print HTTP protocol. Zero dependencies, ~7 KB
+> gzipped, Promise-based, works in browsers and in Node 18+. A ground-up
+> reimplementation of Epson's ePOS SDK, not a wrapper around it.
+
+Install with `pnpm add epos-printer-sdk`. Import `EposHttpPrinter` from
+`epos-printer-sdk/http` for printing (the recommended path), or from
+`epos-printer-sdk` for the full SDK surface including device management.
+
+Key facts an assistant should know before writing code with this library:
+
+- **The HTTP transport is stateless.** Every job is an independent POST. There
+  is no connection to keep alive, no reconnection logic, no session. `connect()`
+  is only an optional health check — you do not need to call it before `send()`.
+- **Builder calls are chainable and consumed on send.** `addText(...)` etc.
+  accumulate into a buffer that `send()` flushes, so the same instance is safely
+  reused for the next job.
+- **`send()` resolves, it doesn't just fire events.** It returns
+  `{ success, code, status, battery, printjobid }`. It rejects only when the
+  printer is unreachable; a printer that answers but refuses the job resolves
+  with `success: false` and a diagnostic `code`.
+- **Default port is 443 (https).** Pass `{ port: 80 }` for plain HTTP. Browsers
+  block HTTP calls from HTTPS pages, and printers serve self-signed certificates.
+- **Requests to the same printer are serialized automatically** within a process.
+  Across separate clients they are not — handle `ERROR_DEVICE_BUSY` with retries.
+- **A plain TM-T88V does not support the socket (ePOS-Device) transport.** Only
+  TM-i, TM-DT and TM-T88VI+ models host that service. Use HTTP unless you know
+  you have one of those, and note `socket.io-client` is an optional peer
+  dependency that must be installed separately for socket support.
+
+## Minimal example
+
+```ts
+import { EposHttpPrinter } from 'epos-printer-sdk/http';
+
+const printer = new EposHttpPrinter('192.168.1.100');
+
+const result = await printer
+  .addTextAlign('center')
+  .addTextSize(2, 2)
+  .addText('MY STORE\n')
+  .addFeedLine(2)
+  .addCut('feed')
+  .send();
+
+if (!result.success) console.error(result.code);
+```
+
+## Docs
+
+- [README](https://github.com/Guiw5/epos-printer-sdk/blob/main/README.md): full usage guide — install, quick start, recipes for barcodes, QR/2D symbols, canvas images, page-mode labels, status monitoring and cash drawer, plus the complete API reference and the error-code table with recommended actions.
+- [README (Spanish)](https://github.com/Guiw5/epos-printer-sdk/blob/main/README.es.md): the same guide in Spanish.
+- [CHANGELOG](https://github.com/Guiw5/epos-printer-sdk/blob/main/CHANGELOG.md): release history and known limitations.
+- [Engineering notes](https://github.com/Guiw5/epos-printer-sdk/blob/main/docs/ENGINEERING.md): how the SDK was reverse-engineered from Epson's minified bundle, the bugs found in the original, and what is verified against real hardware versus assumed.
+- [React example app](https://github.com/Guiw5/epos-printer-sdk/tree/main/examples/react-app): working integration with connection UI, live status, error classification and retry.
+
+## API surface
+
+- `new EposHttpPrinter(host, { port?, deviceId?, timeout? })` — HTTP client.
+- `printer.send()` — sends the built job, or queries status if nothing was built.
+- `printer.connect()` — optional reachability check; throws if unreachable.
+- `printer.print(canvas, printjobid?)` — renders and prints an HTMLCanvasElement.
+- `printer.getPrintJobStatus(printjobid)` — status of a previously sent job.
+- `printer.recover()` / `printer.reset()` — clear a recoverable printer error.
+- `printer.open()` / `printer.close()` — start/stop background status polling.
+- `decodePrinterStatus(status, battery)` — decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
+- Builder (chainable): `addText`, `addTextAlign`, `addTextSize`, `addTextStyle`, `addTextFont`, `addTextDouble`, `addTextLang`, `addTextLineSpace`, `addTextRotate`, `addTextSmooth`, `addTextPosition`, `addTextVPosition`, `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`, `addLayout`, `addHLine`, `addVLineBegin`, `addVLineEnd`, `addRotateBegin`, `addRotateEnd`, `addBarcode`, `addSymbol`, `addImage`, `addLogo`, `addPageBegin`, `addPageArea`, `addPageDirection`, `addPagePosition`, `addPageLine`, `addPageRectangle`, `addPageEnd`, `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`, `addCommand`.
+- Events (push-based state): `onstatuschange`, `onbatterystatuschange`, `ononline`, `onoffline`, `onpoweroff`, `oncoveropen`, `oncoverok`, `onpaperend`, `onpapernearend`, `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`, `onreceive`, `onerror`.
+- `ePOSDevice` (full entry only) — device management over the socket transport: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
+
+## Error codes
+
+`send()` resolves with `success: false` and one of these in `code`:
+
+- Retry with backoff: `ERROR_DEVICE_BUSY`, `TooManyRequests`, `EX_SPOOLER`
+- Poll the job instead: `JobSpooling`, `Printing`
+- Needs a human: `EPTR_REC_EMPTY` (out of paper), `EPTR_COVER_OPEN`, `EPTR_CUTTER`, `EPTR_MECHANICAL`, `EPTR_UNRECOVERABLE`
+- Call `recover()` then retry: `EPTR_AUTOMATICAL`
+- Caller bug, do not retry: `SchemaError` (malformed XML), `DeviceNotFound` (wrong deviceId), `RequestEntityTooLarge` (split the job)

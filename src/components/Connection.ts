@@ -41,38 +41,34 @@ export class Connection {
     // handleSocketError() depend on that to always proceed to
     // registIFAccessResult(); a reject here left connect() hanging forever
     // whenever the probe failed (and left an unhandled rejection besides).
-    return new Promise((resolve) => {
-      let xhr: XMLHttpRequest | null = null;
-      let tid: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      try {
-        xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('Content-Type', 'text/xml; charset=utf-8');
-        xhr.setRequestHeader('If-Modified-Since', 'Thu, 01 Jun 1970 00:00:00 GMT');
-        xhr.setRequestHeader('SOAPAction', '""');
-        xhr.onreadystatechange = () => {
-          if (xhr!.readyState === 4) {
-            clearTimeout(tid);
-            if (xhr!.status === 200) {
-              resolve(RESULTS.OK);
-            } else {
-              console.error('probe error', xhr?.status);
-              resolve(ERRORS.ERROR_PARAMETER);
-            }
-          }
-        };
-        tid = setTimeout(() => {
-          xhr?.abort();
-          resolve(ERRORS.ERROR_TIMEOUT);
-        }, 5000);
-        xhr.timeout = 10000;
-        xhr.send(postdata);
-      } catch (e) {
-        console.error(e);
-        resolve(ERRORS.ERROR_PARAMETER);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'If-Modified-Since': 'Thu, 01 Jun 1970 00:00:00 GMT',
+          SOAPAction: '""',
+        },
+        body: postdata,
+        signal: controller.signal,
+      });
+      if (res.ok) {
+        return RESULTS.OK;
       }
-    });
+      console.error('probe error', res.status);
+      return ERRORS.ERROR_PARAMETER;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        return ERRORS.ERROR_TIMEOUT;
+      }
+      console.error(e);
+      return ERRORS.ERROR_PARAMETER;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   // Known gap vs. the vendor SDK (deferred — TM-T88V printer is the only

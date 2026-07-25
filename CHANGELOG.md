@@ -40,12 +40,31 @@ against real TM-T88V hardware.
 - **Test suite** — 60 unit tests plus opt-in hardware tests (skipped unless
   `PRINTER_ADDRESS` is set).
 
+### Changed
+
+- **`socket.io-client` is now an optional peer dependency**, not a hard
+  dependency. It is only needed by the ePOS-Device socket transport, which
+  plain TM-T88V printers don't host at all, and its transitive packages carry
+  3 known advisories (2 critical). Installing this package now pulls in **zero
+  dependencies and reports 0 vulnerabilities**; `npm install socket.io-client@0.8.7`
+  explicitly if you need the socket transport. Without it, `connect()` degrades
+  to HTTP instead of failing.
+
 ### Fixed
 
 Bugs found by verifying the port against the vendor bundle and the official
-Epson manuals — see [README](README.md#bugs-found-and-fixed-during-the-port)
+Epson manuals — see the [engineering notes](docs/ENGINEERING.md#bugs-found-and-fixed-during-the-port)
 for the full list. Highlights:
 
+- The full API crashed under Node: `ePOSDevice`'s constructor touched `window`,
+  `Connection.probe()` used browser-only `XMLHttpRequest`, and `CookieIO` used
+  `document`/`location`. All three are now guarded or ported to `fetch`, so the
+  whole surface — not just the HTTP entry point — works server-side. Replacing
+  the XHR also leaves the library with a single HTTP implementation instead of
+  two.
+- `addTextLang()` interpolated its argument into an XML attribute unescaped
+  (as the vendor does) — the only place caller data could inject attributes
+  into a print job.
 - The builder buffer was never cleared after a send, so consecutive prints
   resent everything printed before it.
 - `send()` after chaining `add*()` calls silently posted an empty print body.

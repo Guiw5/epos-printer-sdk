@@ -38,7 +38,7 @@ describe.skipIf(!process.env.PRINTER_ADDRESS)('Printer HTTP transport (hardware)
 
       printer
         .addTextAlign(printer.ALIGN_CENTER)
-        .addText('epos-printer-v2 hardware test\n')
+        .addText('epos-printer-sdk hardware test\n')
         .addFeedLine(1)
         .addCut('feed');
 
