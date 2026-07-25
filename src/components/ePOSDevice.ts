@@ -8,17 +8,17 @@ import { Ofsc } from './Ofsc';
 import { CookieIO } from './CookieIO';
 import { SocketGarbageBox } from './SocketGarbageBox';
 import type { DeviceCallback, DeviceType, LegacySocket } from '../types';
-import { 
+import {
   RESULTS,
   ERRORS as CONNECTION_ERRORS,
   IF_EPOSDEVICE,
   DISCONNECT,
-  IF_EPOSPRINT, 
+  IF_EPOSPRINT,
   CONNECT,
   RECONNECTING,
   IF_ALL,
 } from '../constants/connection';
-import { 
+import {
   CONNECT_TIMEOUT,
   TYPES,
   IFPORT_EPOSDEVICE,
@@ -105,7 +105,7 @@ export class ePOSDevice {
   async connect(address: string, port: number, options?: ConnectionOptions): Promise<string> {
     try {
       if (
-        this.conection.status(IF_EPOSDEVICE) !== DISCONNECT || 
+        this.conection.status(IF_EPOSDEVICE) !== DISCONNECT ||
         this.conection.status(IF_EPOSPRINT) !== DISCONNECT
       ) {
         this.disconnect();
@@ -132,7 +132,7 @@ export class ePOSDevice {
           // socket.io-client fails to load in this environment), degrade the
           // same way a socket error does: probe the HTTP service and fall
           // back to it. Without this, a rejection here would leave connect()
-          // hanging forever — registIFAccessResult would never fire.
+          // hanging forever, registIFAccessResult would never fire.
           this.connectBySocketIo(CONNECT_TIMEOUT).catch(() => this.handleSocketError());
         });
         console.log('connected socket', this.conection.isUsablePrintIF());
@@ -161,7 +161,7 @@ export class ePOSDevice {
   }
 
   /**
-   * Opens a device and resolves with it directly — no callback wiring
+   * Opens a device and resolves with it directly: no callback wiring
    * required. On the socket transport the OPENDEVICE response arrives later
    * as its own message (see procOpenDevice), so this wraps the legacy
    * callback-style flow in a Promise rather than duplicating it; pass a
@@ -209,13 +209,13 @@ export class ePOSDevice {
       }
 
       const deviceObject = await this.devSelector.select(
-        deviceId, 
-        deviceType, 
-        options.driver, 
-        isCrypto, 
+        deviceId,
+        deviceType,
+        options.driver,
+        isCrypto,
         this
       );
-      
+
       deviceObject.setConnection(this.conection);
       const element = new DeviceElement(deviceId, isCrypto, deviceObject, callback);
       this.deviceIntances.add(element);
@@ -223,9 +223,9 @@ export class ePOSDevice {
       if (this.conection.isUsableDeviceIF()) {
         console.log('isUsableDeviceIF true', deviceId, deviceType, isCrypto, isBufferEnable);
         const eposmsg = MessageFactory.getOpenDeviceMessage(
-          deviceId, 
-          deviceType, 
-          isCrypto, 
+          deviceId,
+          deviceType,
+          isCrypto,
           isBufferEnable
         );
         this.conection.emit(eposmsg);
@@ -299,8 +299,8 @@ export class ePOSDevice {
     // Loaded lazily, and declared as an OPTIONAL peer dependency: this legacy
     // CJS bundle is only needed by the socket transport, and it drags in
     // transitive packages with known CVEs. Keeping it optional means the
-    // HTTP-only path — the recommended one, and the only one a plain TM-T88V
-    // supports — installs with zero dependencies.
+    // HTTP-only path, the recommended one, and the only one a plain TM-T88V
+    // supports, installs with zero dependencies.
     let io: { connect(host: string, options?: Record<string, unknown>): LegacySocket };
     try {
       io = (await import('socket.io-client')).default;
@@ -448,7 +448,7 @@ export class ePOSDevice {
 
       if (eposmsg.data.protocol_version < 2) {
         response = MessageFactory.getPubkeyMessage(
-          eposmsg.data.prime, 
+          eposmsg.data.prime,
           eposmsg.data.key
         );
         this.conection.emit(response);
@@ -555,7 +555,7 @@ export class ePOSDevice {
   // Intentional no-op, matching the vendor SDK exactly (see eposdevice.js's
   // own `procDisconnect: function(eposmsg) {}`). The <disconnect> message is
   // purely a request/ack pair for the client's own disconnect() call, which
-  // already runs cleanup() synchronously before any ack can arrive — so by
+  // already runs cleanup() synchronously before any ack can arrive, so by
   // the time this fires, there's nothing left to react to. Per the official
   // ePOS-Device XML manual, real disconnection notifications are meant to
   // go through <reconnect> exhaustion (cleanup() firing ondisconnect), not
@@ -639,8 +639,8 @@ export class ePOSDevice {
     this.deviceIntances.removeAll();
 
     if (
-      this.ondisconnect && 
-      (this.conection.status(IF_EPOSDEVICE) !== DISCONNECT || 
+      this.ondisconnect &&
+      (this.conection.status(IF_EPOSDEVICE) !== DISCONNECT ||
         this.conection.status(IF_EPOSPRINT) !== DISCONNECT)
     ) {
       this.ondisconnect();

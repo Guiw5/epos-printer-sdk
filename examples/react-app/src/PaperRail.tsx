@@ -28,14 +28,14 @@ function decode(s: string): string {
 /**
  * Turns the ePOS-Print XML of a job into what the paper would show. Text
  * prints as text; barcodes, symbols and images can't be rendered as
- * characters, so they're announced instead of silently dropped — the point is
+ * characters, so they're announced instead of silently dropped, the point is
  * to see that the job carried them.
  */
 function parseJob(xml: string): Part[] {
   const parts: Part[] = [];
   // Self-closing alternative first, and deliberately so: `<text width="2"/>`
   // would otherwise match the paired form, whose lazy body then swallows
-  // everything up to the next `</text>` — printing raw markup as if it were
+  // everything up to the next `</text>`, printing raw markup as if it were
   // receipt text.
   const tag =
     /<(text|feed|cut|image|pulse|position)\b([^>]*)\/>|<(text|barcode|symbol|image|feed|cut)\b([^>]*)>([\s\S]*?)<\/\3>/g;
@@ -50,7 +50,7 @@ function parseJob(xml: string): Part[] {
         if (body) parts.push({ kind: 'text', value: decode(body) });
         break;
       // In page mode each <position> moves the print head, so whatever
-      // follows lands on its own line — without this, positioned label text
+      // follows lands on its own line, without this, positioned label text
       // renders as one run-on string.
       case 'position':
         if (parts.length > 0) parts.push({ kind: 'text', value: '\n' });

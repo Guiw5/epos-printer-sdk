@@ -20,7 +20,7 @@ export class Printer extends CanvasPrint {
     this.timeout = 10000;
     this.message = '';
   }
-  
+
   setXmlString(xml: string): void {
     this.message = xml;
   }
@@ -74,7 +74,7 @@ export class Printer extends CanvasPrint {
 
     const soap = buildSoapEnvelope(printdata, printjobid);
     // Vendor parity: Printer.send() clears the builder buffer right after
-    // handing the request off, on the HTTP path too (bundle line ~3529) —
+    // handing the request off, on the HTTP path too (bundle line ~3529),
     // otherwise consecutive prints resend the previous content.
     this.setXmlString('');
     try {

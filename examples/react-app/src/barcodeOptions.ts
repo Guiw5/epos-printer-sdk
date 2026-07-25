@@ -1,7 +1,7 @@
 import type { BarcodeType, SymbolType } from 'epos-printer-sdk/http';
 
 // Verified against the official ePOS-Print XML User's Manual (Rev.AF),
-// Chapter 4 XML Reference — <barcode> and <symbol> "type" attribute tables.
+// Chapter 4 XML Reference, <barcode> and <symbol> "type" attribute tables.
 export const BARCODE_TYPES: BarcodeType[] = [
   'upc_a', 'upc_e', 'ean13', 'jan13', 'ean8', 'jan8', 'code39', 'itf', 'codabar', 'code93',
   'code128', 'code128_auto', 'gs1_128',

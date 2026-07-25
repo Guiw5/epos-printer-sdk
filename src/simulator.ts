@@ -1,5 +1,5 @@
 // A simulated ePOS-Print service: a fetch-shaped function you can hand to
-// EposHttpPrinter instead of the network. Separate entry point on purpose —
+// EposHttpPrinter instead of the network. Separate entry point on purpose,
 // none of this ships to consumers who don't import it.
 //
 // It speaks the real protocol (parses the SOAP body, answers with genuine
@@ -21,7 +21,7 @@ const ASB_RECEIPT_END = 524288;
 export interface SimulatedPrinterState {
   /** Printer is powered on and reachable. Default: true. */
   online: boolean;
-  /** Roll cover open — printing fails while true. Default: false. */
+  /** Roll cover open, printing fails while true. Default: false. */
   coverOpen: boolean;
   /** Sheets of paper left. Reaching 0 fails prints with EPTR_REC_EMPTY. */
   paper: number;
@@ -44,7 +44,7 @@ export interface SimulatorOptions {
 export interface Simulator {
   /** Pass this to `new EposHttpPrinter(host, { fetch })`. */
   fetch: FetchLike;
-  /** Current simulated state — mutate it to script failures in a demo. */
+  /** Current simulated state, mutate it to script failures in a demo. */
   state: SimulatedPrinterState;
   /** Everything "printed" so far, newest last. */
   jobs: Array<{ xml: string; text: string; printjobid: string }>;
@@ -128,7 +128,7 @@ export function createSimulator(options: SimulatorOptions = {}): Simulator {
       }
 
       // An unreachable printer rejects at the network layer, exactly like fetch
-      // does — not with an HTTP error the caller could misread as a response.
+      // does, not with an HTTP error the caller could misread as a response.
       if (!sim.state.online) {
         throw new TypeError('Failed to fetch');
       }

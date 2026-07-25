@@ -32,7 +32,7 @@
     "types": ["node", "vite/client", "vitest/jsdom"]
   },
   // Tests ARE included here on purpose: this is the type-CHECKING config
-  // (noEmit) — excluding them would leave test files typechecked by nobody
+  // (noEmit): excluding them would leave test files typechecked by nobody
   // (vitest transpiles without checking) and drop them into the IDE's
   // "inferred project", where ambient declarations like
   // src/types/socket.io-client.d.ts don't exist (=> ts(7016) in the

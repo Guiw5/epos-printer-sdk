@@ -7,7 +7,7 @@
 
 [English](./README.md) · **Español**
 
-Imprimí en impresoras de tickets Epson **TM** desde JavaScript — por HTTP, con
+Imprimí en impresoras de tickets Epson **TM** desde JavaScript, por HTTP, con
 `async`/`await`, tipos completos de TypeScript y sin dependencias.
 
 Una reimplementación en TypeScript del protocolo ePOS-Print de Epson, hecha por
@@ -33,9 +33,9 @@ una API íntegramente basada en callbacks. Este paquete es un reemplazo moderno.
 
 - **Cero dependencias, ~7 KB gzip.** `npm install epos-printer-sdk` no arrastra
   absolutamente nada: ni `lodash`, ni `dayjs`, ni cripto empaquetada, ni
-  Socket.IO — y `npm audit` reporta 0 vulnerabilidades.
+  Socket.IO, y `npm audit` reporta 0 vulnerabilidades.
 - **Agnóstica del framework, y corre en el servidor.** Usa `fetch` a secas, así
-  que funciona en React, Vue, Svelte o vanilla — *y* en Node 18+ (API routes,
+  que funciona en React, Vue, Svelte o vanilla, *y* en Node 18+ (API routes,
   SSR, scripts, workers de cola). No es un wrapper solo para React.
 - **Nativa de promesas.** `send()` resuelve con la respuesta real de la
   impresora, en vez de obligarte a cablear `onreceive`/`onerror` antes.
@@ -45,7 +45,7 @@ una API íntegramente basada en callbacks. Este paquete es un reemplazo moderno.
   apertura de cajón.
 - **Tipada contra la especificación real.** Las uniones de tipos de códigos,
   símbolos y niveles se verificaron contra las regex de validación del propio
-  bundle de Epson y los manuales XML oficiales — no se adivinaron.
+  bundle de Epson y los manuales XML oficiales: no se adivinaron.
 - **Segura ante concurrencia.** Las requests a la misma impresora se serializan
   automáticamente, porque el hardware igual las procesa de a una. Diez trabajos
   simultáneos con timeout de 2s contra una TM-T88V real: 4/10 sin esto, 10/10
@@ -151,7 +151,7 @@ await printer
   .send();
 ```
 
-También soporta PDF417, DataMatrix, Aztec, MaxiCode y GS1 DataBar apilado —
+También soporta PDF417, DataMatrix, Aztec, MaxiCode y GS1 DataBar apilado,
 ver [`SymbolType`](src/types.ts).
 
 ### Imagen desde un canvas
@@ -230,7 +230,7 @@ resuelve con `success: false` y un `code`.
 
 | `code` | Significado | Qué hacer |
 |---|---|---|
-| `ERROR_DEVICE_BUSY` | Otro cliente está imprimiendo | **Reintentar** con backoff — esperable con varios clientes |
+| `ERROR_DEVICE_BUSY` | Otro cliente está imprimiendo | **Reintentar** con backoff, esperable con varios clientes |
 | `TooManyRequests`, `EX_SPOOLER` | Cola llena | **Reintentar**, con backoff más largo |
 | `JobSpooling`, `Printing` | Todavía procesando | Consultar `getPrintJobStatus()` |
 | `EPTR_REC_EMPTY` | Sin papel | Avisar al operador; no reintentar a ciegas |
@@ -238,7 +238,7 @@ resuelve con `success: false` y un `code`.
 | `EPTR_CUTTER`, `EPTR_MECHANICAL` | Atasco / falla mecánica | Operador, después `recover()` |
 | `EPTR_AUTOMATICAL` | Falla recuperable | Llamar a `recover()` y reintentar |
 | `EPTR_UNRECOVERABLE` | Necesita apagar y prender | Operador |
-| `SchemaError` | XML mal formado | Bug en tu código — no reintentar |
+| `SchemaError` | XML mal formado | Bug en tu código: no reintentar |
 | `DeviceNotFound` | `deviceId` incorrecto | Corregir configuración |
 | `RequestEntityTooLarge` | Trabajo demasiado grande | Dividirlo |
 
@@ -253,7 +253,7 @@ async function printWithRetry(job: () => Promise<PrintServiceResponse>, intentos
       const res = await job();
       if (res.success || !TRANSITORIOS.includes(res.code)) return res;
     } catch (err) {
-      if (i === intentos) throw err;   // impresora inalcanzable — también transitorio
+      if (i === intentos) throw err;   // impresora inalcanzable, también transitorio
     }
     await new Promise((r) => setTimeout(r, 500 * 2 ** (i - 1)));
   }
@@ -286,16 +286,16 @@ correspondiente.
 
 **Métodos del builder** (todos encadenables):
 
-- *Texto* — `addText`, `addTextAlign`, `addTextSize`, `addTextDouble`,
+- *Texto*: `addText`, `addTextAlign`, `addTextSize`, `addTextDouble`,
   `addTextStyle`, `addTextFont`, `addTextLang`, `addTextLineSpace`,
   `addTextRotate`, `addTextSmooth`, `addTextPosition`, `addTextVPosition`
-- *Layout* — `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`,
+- *Layout*: `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`,
   `addLayout`, `addHLine`, `addVLineBegin`, `addVLineEnd`, `addRotateBegin`,
   `addRotateEnd`
-- *Gráficos* — `addBarcode`, `addSymbol`, `addImage`, `addLogo`
-- *Modo página* — `addPageBegin`, `addPageArea`, `addPageDirection`,
+- *Gráficos*: `addBarcode`, `addSymbol`, `addImage`, `addLogo`
+- *Modo página*: `addPageBegin`, `addPageArea`, `addPageDirection`,
   `addPagePosition`, `addPageLine`, `addPageRectangle`, `addPageEnd`
-- *Dispositivo* — `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`,
+- *Dispositivo*: `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`,
   `addCommand`
 
 **Eventos** (para estado push, callbacks por naturaleza):
@@ -312,7 +312,7 @@ transporte por socket:
 | Import | Contenido | Tamaño (gzip) |
 |---|---|---|
 | `epos-printer-sdk/http` | `EposHttpPrinter`, `decodePrinterStatus`, tipos | **~7 KB** |
-| `epos-printer-sdk` | Todo, incluido `ePOSDevice` + gestión de dispositivos | ~30 KB (+31 KB de `socket.io-client`, solo si lo instalás — ver abajo) |
+| `epos-printer-sdk` | Todo, incluido `ePOSDevice` + gestión de dispositivos | ~30 KB (+31 KB de `socket.io-client`, solo si lo instalás, ver abajo) |
 
 El `socket.io-client@0.8.7` que necesita el transporte por socket es una
 **peer dependency opcional**: no se instala por defecto, porque arrastra
@@ -329,7 +329,7 @@ Vite/webpack/Rollup/esbuild hacen tree-shaking sin configuración extra.
 
 ## Uso con React
 
-No hay binding de React para instalar — el cliente es un objeto común, así que
+No hay binding de React para instalar, el cliente es un objeto común, así que
 alcanza con un hook chico:
 
 ```ts
@@ -343,9 +343,9 @@ Como el transporte HTTP no tiene estado (cada trabajo es una request
 independiente), no hay conexión que mantener viva, que se corte, ni que
 reestablecer.
 
-Un ejemplo completo — UI de conexión, estado en vivo, códigos de barras, QR,
+Un ejemplo completo, UI de conexión, estado en vivo, códigos de barras, QR,
 etiquetas, impresión de canvas con seguimiento, clasificación de errores con
-acciones recomendadas y varias impresoras a la vez — está en
+acciones recomendadas y varias impresoras a la vez, está en
 [`examples/react-app`](examples/react-app).
 
 ## Gestión de dispositivos (`ePOSDevice`)
@@ -366,7 +366,7 @@ await printer.addText('Hola\n').addCut('feed').send();
 ```
 
 Tené en cuenta que las **TM-T88V** comunes no hospedan el servicio ePOS-Device
-(solo lo hacen los modelos TM-i, TM-DT y TM-T88VI en adelante) — en esas,
+(solo lo hacen los modelos TM-i, TM-DT y TM-T88VI en adelante), en esas,
 `connect()` cae de forma transparente a HTTP, que es lo que también hace el SDK
 oficial.
 
@@ -375,7 +375,7 @@ oficial.
 - **HTTPS y certificados.** Los navegadores bloquean requests HTTP planas desde
   una página HTTPS, así que en producción normalmente necesitás la impresora
   accesible por HTTPS. Las impresoras sirven un certificado autofirmado, que
-  hay que aceptar una vez por máquina cliente — poner la impresora detrás de un
+  hay que aceptar una vez por máquina cliente, poner la impresora detrás de un
   proxy inverso con certificado válido evita ese paso.
 - **CORS.** El `service.cgi` de Epson responde con
   `Access-Control-Allow-Origin: *`, así que las llamadas desde el navegador
@@ -393,19 +393,18 @@ oficial.
   hardware real.
 - Los dispositivos `type_display` (ePOS-Display) no se sondean.
 - 18 de las ~22 subclases de dispositivo del SDK original (displays de cliente,
-  teclados, lectores MSR, impresoras híbridas/slip, fiscales) no están portadas
-  — ninguna aplica a una TM-T88V.
+  teclados, lectores MSR, impresoras híbridas/slip, fiscales) no están portadas, ninguna aplica a una TM-T88V.
 
 ## Documentación
 
-- [Notas de ingeniería](docs/ENGINEERING.md) — cómo se hizo la ingeniería
+- [Notas de ingeniería](docs/ENGINEERING.md), cómo se hizo la ingeniería
   inversa del SDK, los bugs encontrados en el bundle original, y qué está
   verificado frente a qué está asumido (en inglés).
 - [Changelog](CHANGELOG.md)
-- [llms.txt](llms.txt) — resumen legible por máquinas de la API y sus
+- [llms.txt](llms.txt), resumen legible por máquinas de la API y sus
   sutilezas, para asistentes de código. También servido en
   `https://unpkg.com/epos-printer-sdk/llms.txt`.
-- [AGENTS.md](AGENTS.md) — convenciones para agentes y humanos que contribuyan.
+- [AGENTS.md](AGENTS.md), convenciones para agentes y humanos que contribuyan.
 
 ## Contribuir
 

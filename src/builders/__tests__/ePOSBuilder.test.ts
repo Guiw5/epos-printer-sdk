@@ -44,7 +44,7 @@ describe('ePOSBuilder', () => {
       expect(body(b)).toBe('<text reverse="true" em="true"/>');
     });
 
-    it('addTextLang escapes the attribute value (the vendor interpolates it raw — the one caller-data injection point)', () => {
+    it('addTextLang escapes the attribute value (the vendor interpolates it raw, the one caller-data injection point)', () => {
       b.addTextLang('en" size="9');
       expect(body(b)).toBe('<text lang="en&quot; size=&quot;9"/>');
     });
@@ -92,7 +92,7 @@ describe('ePOSBuilder', () => {
   });
 
   describe('image (regression: no x/y attribute)', () => {
-    it('addImage never emits x/y — only width/height/color/mode, per the official manual', () => {
+    it('addImage never emits x/y: only width/height/color/mode, per the official manual', () => {
       const fakeCtx = {
         getImageData: () => ({ data: new Uint8ClampedArray([255, 255, 255, 255]), width: 1, height: 1 }),
       } as unknown as CanvasRenderingContext2D;

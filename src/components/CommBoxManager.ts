@@ -113,19 +113,19 @@ export class CommBoxManager {
 
   executeCommDataCallback(data: Data, sq: number): void {
     const { box_id, type } = data as MsgData;
-    
+
     const commBox = this.getCommBox(box_id);
     if (!commBox) {
       throw new Error(`CommBox ${box_id} not found.`);
     }
-    
+
     const method = `client_${type}` as keyof CommBox;
     if (typeof commBox[method] !== "function") {
       throw new Error(`Method ${method} not found on CommBox.`);
     }
 
     try {
-      // .call(commBox, ...) — invoking the detached function would lose
+      // .call(commBox, ...), invoking the detached function would lose
       // `this`, breaking this.callbackInfo inside client_send & co. (the
       // vendor's eval("commBoxObj.client_x(...)") kept the receiver).
       (commBox[method] as (data: any, sq: number) => void).call(commBox, data, sq);

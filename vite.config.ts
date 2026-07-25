@@ -3,7 +3,7 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  // This is a library build — public/ (the demo's favicon etc.) has no
+  // This is a library build, public/ (the demo's favicon etc.) has no
   // business ending up in dist/, which is exactly what ships to npm.
   publicDir: false,
   build: {

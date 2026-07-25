@@ -1,22 +1,22 @@
 import { MODE_GRAY16, SIGNED_SHORT_MAX, SIGNED_SHORT_MIN, UNSIGNED_BYTE_MAX, UNSIGNED_SHORT_MAX } from "../constants/eposbuilder";
 import { escapeControl, escapeMarkup, toBase64Binary, toGrayImage, toHexBinary, toMonoImage, validateRange as validateRange } from "./utils";
-import { 
-  Alignment, 
-  Font, 
-  Color, 
-  FeedPosition, 
-  Mode, 
-  BarcodeType, 
-  Hri, 
-  SymbolType, 
-  Level, 
-  LineStyle, 
-  Direction, 
-  Drawer, 
-  PulseTime, 
-  Pattern, 
-  LayoutType, 
-  CutType 
+import {
+  Alignment,
+  Font,
+  Color,
+  FeedPosition,
+  Mode,
+  BarcodeType,
+  Hri,
+  SymbolType,
+  Level,
+  LineStyle,
+  Direction,
+  Drawer,
+  PulseTime,
+  Pattern,
+  LayoutType,
+  CutType
 } from "../types";
 
 export class ePOSBuilder {
@@ -125,7 +125,7 @@ export class ePOSBuilder {
   // Image methods
   /**
    * x/y select the source region to read from the canvas (via
-   * getImageData) — the ePOS-Print XML <image> element itself has no x/y
+   * getImageData), the ePOS-Print XML <image> element itself has no x/y
    * attribute (confirmed against the official ePOS-Print XML manual: only
    * width/height/color/align/mode are valid). Position in page mode is set
    * separately via addPagePosition() before this call.
@@ -184,15 +184,15 @@ export class ePOSBuilder {
         validateRange("level", level, 0, UNSIGNED_BYTE_MAX);
       }
       attrs += ` level="${level}"`;
-    }  
+    }
     if (width !== undefined) {
       validateRange("width", width, 0, UNSIGNED_SHORT_MAX);
       attrs += ` width="${width}"`;
     }
     if (height !== undefined) {
-      validateRange("height", height, 0, UNSIGNED_SHORT_MAX);  
+      validateRange("height", height, 0, UNSIGNED_SHORT_MAX);
       attrs += ` height="${height}"`;
-    } 
+    }
     if (size !== undefined) attrs += ` size="${size}"`;
     this.message += `<symbol${attrs}>${escapeControl(escapeMarkup(data))}</symbol>`;
     return this;
@@ -300,7 +300,7 @@ export class ePOSBuilder {
     if (repeat) {
       validateRange("repeat", repeat, 0, UNSIGNED_BYTE_MAX);
       attrs += ` repeat="${repeat}"`;
-    }  
+    }
     if (cycle) {
       validateRange("cycle", cycle, 0, UNSIGNED_SHORT_MAX);
       attrs += ` cycle="${cycle}"`;
@@ -331,7 +331,7 @@ export class ePOSBuilder {
     if (offsetCut !== undefined) {
       validateRange("offset-cut", offsetCut, SIGNED_SHORT_MIN, SIGNED_SHORT_MAX);
       attrs += ` offset-cut="${offsetCut}"`;
-    } 
+    }
     if (offsetLabel !== undefined) {
       validateRange("offset-label", offsetLabel, SIGNED_SHORT_MIN, SIGNED_SHORT_MAX);
       attrs += ` offset-label="${offsetLabel}"`;

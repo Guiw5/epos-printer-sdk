@@ -13,7 +13,7 @@ interface OutcomePanelProps {
 
 /**
  * Shows the last result with its recommended action, plus the full catalogue
- * of codes the printer can return — so it's clear at a glance what to expect
+ * of codes the printer can return, so it's clear at a glance what to expect
  * and what to do in each case.
  */
 export default function OutcomePanel({ last, onRetry, onRecover, busy, connected }: OutcomePanelProps) {

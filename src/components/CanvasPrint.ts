@@ -64,21 +64,21 @@ export class CanvasPrint extends ePOSPrint {
   setConnection(connection: Connection) {
     this.connection = connection;
   }
-  
+
   getPrintParams(...params: [HTMLCanvasElement, (string | boolean)?, Mode?, string?]): PrintParams {
     const len = params.length;
     let cut = this.cut;
     let mode = this.mode;
     let [canvas] = params;
     let printjobid = "";
-      
+
     switch (len) {
       case 2:
         [canvas, printjobid] = params as [HTMLCanvasElement, string];
         break;
       case 3:
         [canvas, cut = cut, mode = mode] = params as [HTMLCanvasElement, boolean, Mode];
-        break;  
+        break;
       case 4:
         [canvas, cut = cut, mode = mode, printjobid] = params as [HTMLCanvasElement, boolean, Mode, string];
         break
@@ -86,7 +86,7 @@ export class CanvasPrint extends ePOSPrint {
 
     return { canvas, cut, mode, printjobid };
   }
-  
+
   /**
    * Print the canvas
    * @param canvas html canvas element
@@ -119,7 +119,7 @@ export class CanvasPrint extends ePOSPrint {
 
   print(...params: [HTMLCanvasElement, (string | boolean)?, Mode?, string?]): Promise<PrintServiceResponse> {
     const { canvas, cut, mode, printjobid } = this.getPrintParams(...params);
-    
+
     if (!canvas || typeof canvas.getContext !== "function") {
       throw new Error("Canvas is not supported");
     }
@@ -158,7 +158,7 @@ export class CanvasPrint extends ePOSPrint {
 
     // Pass the built content explicitly (the vendor's standalone
     // CanvasPrint inherits ePOSPrint.send and actually posts an EMPTY body
-    // here — canvas printing only worked through Printer's overridden
+    // here, canvas printing only worked through Printer's overridden
     // send). Consume the buffer once handed off, like Printer.send() does.
     const request = this.toString();
     this.message = '';

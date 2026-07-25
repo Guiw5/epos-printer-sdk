@@ -4,7 +4,7 @@ import { drawDemoCanvas } from './demoCanvas';
 /**
  * The demo is a recipe book: every button both prints something and shows the
  * code that produced it, so the page doubles as runnable documentation.
- * `snippet` is the source as a reader should see it — kept next to `run` so
+ * `snippet` is the source as a reader should see it, kept next to `run` so
  * the two can't drift apart unnoticed.
  */
 export interface Recipe {
@@ -29,7 +29,7 @@ export const RECIPES: Recipe[] = [
   {
     id: 'receipt',
     title: 'Sales receipt',
-    blurb: 'Alignment, text size and emphasis — the everyday job.',
+    blurb: 'Alignment, text size and emphasis, the everyday job.',
     snippet: `await printer
   .addTextAlign('center')
   .addTextSize(2, 2)
@@ -99,7 +99,7 @@ export const RECIPES: Recipe[] = [
   {
     id: 'label',
     title: 'Label (page mode)',
-    blurb: 'Fixed-size area with positioned text — not the receipt flow.',
+    blurb: 'Fixed-size area with positioned text, not the receipt flow.',
     snippet: `await printer
   .addPageBegin()
   .addPageArea(0, 0, 380, 120)

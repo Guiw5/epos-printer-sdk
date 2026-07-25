@@ -18,7 +18,7 @@ export type SymbolType = 'pdf417_standard' | 'pdf417_truncated' | 'qrcode_model_
                    'gs1_databar_stacked' | 'gs1_databar_stacked_omnidirectional' | 'gs1_databar_expanded_stacked' |
                    'azteccode_fullrange' | 'azteccode_compact' |
                    'datamatrix_square' | 'datamatrix_rectangle_8' | 'datamatrix_rectangle_12' | 'datamatrix_rectangle_16';
-export type Level = 'level_0' | 'level_1' | 'level_2' | 'level_3' | 'level_4' | 'level_5' | 'level_6' | 
+export type Level = 'level_0' | 'level_1' | 'level_2' | 'level_3' | 'level_4' | 'level_5' | 'level_6' |
              'level_7' | 'level_8' |  'level_l' | 'level_m' | 'level_q' | 'level_h' | 'default';
 export type LineStyle = 'thin' | 'medium' | 'thick' | 'thin_double' | 'medium_double' | 'thick_double';
 export type Direction = 'left_to_right' | 'bottom_to_top' | 'right_to_left' | 'top_to_bottom';
@@ -53,7 +53,7 @@ export type ConnectionCallback = (result: string) => void;
  * library actually touches. Deliberately our own interface: the npm package
  * predates TypeScript and ships no types, and the internal ambient
  * declaration (src/types/socket.io-client.d.ts) is not part of the build
- * output — so nothing in the public .d.ts surface may reference the
+ * output, so nothing in the public .d.ts surface may reference the
  * 'socket.io-client' module, or consumers' typechecking breaks.
  */
 export interface LegacySocket {

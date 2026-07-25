@@ -1,7 +1,7 @@
 /*
  * Design language: the printer itself.
  *
- * Everything here comes from the object the library drives — a thermal
+ * Everything here comes from the object the library drives: a thermal
  * receipt printer. The control side is the machine's charcoal chassis with
  * status LEDs; the output side is thermal paper, which is cool off-white
  * (not cream), printed in carbon grey (never pure black), torn at the edge.
@@ -426,7 +426,7 @@ button.ghost {
   color: var(--chassis-text);
 }
 
-/* ─── the paper rail — the signature ────────────────────────────────── */
+/* ─── the paper rail, the signature ────────────────────────────────── */
 
 .rail {
   position: sticky;
@@ -504,7 +504,7 @@ button.ghost {
   gap: 0.5rem;
 }
 
-/* Non-text jobs (barcodes, QR, images) can't be shown as characters — say so
+/* Non-text jobs (barcodes, QR, images) can't be shown as characters, so say so
    in the printer's own voice rather than rendering nothing. */
 .receipt-glyph {
   display: block;

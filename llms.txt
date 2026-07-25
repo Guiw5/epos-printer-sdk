@@ -13,7 +13,7 @@ Key facts an assistant should know before writing code with this library:
 
 - **The HTTP transport is stateless.** Every job is an independent POST. There
   is no connection to keep alive, no reconnection logic, no session. `connect()`
-  is only an optional health check — you do not need to call it before `send()`.
+  is only an optional health check, you do not need to call it before `send()`.
 - **Builder calls are chainable and consumed on send.** `addText(...)` etc.
   accumulate into a buffer that `send()` flushes, so the same instance is safely
   reused for the next job.
@@ -24,7 +24,7 @@ Key facts an assistant should know before writing code with this library:
 - **Default port is 443 (https).** Pass `{ port: 80 }` for plain HTTP. Browsers
   block HTTP calls from HTTPS pages, and printers serve self-signed certificates.
 - **Requests to the same printer are serialized automatically** within a process.
-  Across separate clients they are not — handle `ERROR_DEVICE_BUSY` with retries.
+  Across separate clients they are not, handle `ERROR_DEVICE_BUSY` with retries.
 - **A plain TM-T88V does not support the socket (ePOS-Device) transport.** Only
   TM-i, TM-DT and TM-T88VI+ models host that service. Use HTTP unless you know
   you have one of those, and note `socket.io-client` is an optional peer
@@ -50,7 +50,7 @@ if (!result.success) console.error(result.code);
 
 ## Docs
 
-- [README](https://github.com/Guiw5/epos-printer-sdk/blob/main/README.md): full usage guide — install, quick start, recipes for barcodes, QR/2D symbols, canvas images, page-mode labels, status monitoring and cash drawer, plus the complete API reference and the error-code table with recommended actions.
+- [README](https://github.com/Guiw5/epos-printer-sdk/blob/main/README.md): full usage guide, install, quick start, recipes for barcodes, QR/2D symbols, canvas images, page-mode labels, status monitoring and cash drawer, plus the complete API reference and the error-code table with recommended actions.
 - [README (Spanish)](https://github.com/Guiw5/epos-printer-sdk/blob/main/README.es.md): the same guide in Spanish.
 - [CHANGELOG](https://github.com/Guiw5/epos-printer-sdk/blob/main/CHANGELOG.md): release history and known limitations.
 - [Engineering notes](https://github.com/Guiw5/epos-printer-sdk/blob/main/docs/ENGINEERING.md): how the SDK was reverse-engineered from Epson's minified bundle, the bugs found in the original, and what is verified against real hardware versus assumed.
@@ -58,17 +58,17 @@ if (!result.success) console.error(result.code);
 
 ## API surface
 
-- `new EposHttpPrinter(host, { port?, deviceId?, timeout? })` — HTTP client.
-- `printer.send()` — sends the built job, or queries status if nothing was built.
-- `printer.connect()` — optional reachability check; throws if unreachable.
-- `printer.print(canvas, printjobid?)` — renders and prints an HTMLCanvasElement.
-- `printer.getPrintJobStatus(printjobid)` — status of a previously sent job.
-- `printer.recover()` / `printer.reset()` — clear a recoverable printer error.
-- `printer.open()` / `printer.close()` — start/stop background status polling.
-- `decodePrinterStatus(status, battery)` — decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
+- `new EposHttpPrinter(host, { port?, deviceId?, timeout? })`, HTTP client.
+- `printer.send()`, sends the built job, or queries status if nothing was built.
+- `printer.connect()`, optional reachability check; throws if unreachable.
+- `printer.print(canvas, printjobid?)`, renders and prints an HTMLCanvasElement.
+- `printer.getPrintJobStatus(printjobid)`, status of a previously sent job.
+- `printer.recover()` / `printer.reset()`, clear a recoverable printer error.
+- `printer.open()` / `printer.close()`, start/stop background status polling.
+- `decodePrinterStatus(status, battery)`, decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
 - Builder (chainable): `addText`, `addTextAlign`, `addTextSize`, `addTextStyle`, `addTextFont`, `addTextDouble`, `addTextLang`, `addTextLineSpace`, `addTextRotate`, `addTextSmooth`, `addTextPosition`, `addTextVPosition`, `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`, `addLayout`, `addHLine`, `addVLineBegin`, `addVLineEnd`, `addRotateBegin`, `addRotateEnd`, `addBarcode`, `addSymbol`, `addImage`, `addLogo`, `addPageBegin`, `addPageArea`, `addPageDirection`, `addPagePosition`, `addPageLine`, `addPageRectangle`, `addPageEnd`, `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`, `addCommand`.
 - Events (push-based state): `onstatuschange`, `onbatterystatuschange`, `ononline`, `onoffline`, `onpoweroff`, `oncoveropen`, `oncoverok`, `onpaperend`, `onpapernearend`, `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`, `onreceive`, `onerror`.
-- `ePOSDevice` (full entry only) — device management over the socket transport: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
+- `ePOSDevice` (full entry only), device management over the socket transport: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
 
 ## Error codes
 

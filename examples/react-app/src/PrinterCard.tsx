@@ -17,7 +17,7 @@ export interface PrinterCardProps {
 
 /**
  * Everything needed to connect to and drive ONE printer. Fully self-contained
- * — its own connection, state and log — so multiple printers are just
+ * its own connection, state and log, so multiple printers are just
  * multiple independent <PrinterCard>s.
  */
 export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
@@ -151,7 +151,7 @@ export default function PrinterCard({ label, onRemove }: PrinterCardProps) {
     }
   }
 
-  // Derived during render, not in an effect — the LEDs are just a view of the
+  // Derived during render, not in an effect, the LEDs are just a view of the
   // last status we got back.
   const leds = [
     { label: t.ledReady, on: !isConnected ? '' : status?.online === false ? 'bad' : 'ok' },

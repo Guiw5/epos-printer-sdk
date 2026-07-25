@@ -14,7 +14,7 @@ export function escapeMarkup(s: string): string {
 }
 
 export function escapeControl(s: string): string {
-  // Deliberately matches raw control bytes — this escapes them for the wire protocol.
+  // Deliberately matches raw control bytes, this escapes them for the wire protocol.
   // eslint-disable-next-line no-control-regex
   const control = /[\\\x00-\x1f\x7f-\xff]/g;
   return control.test(s)
@@ -36,11 +36,11 @@ export function toHexBinary(s: string): string {
 export function toHexBinaryOld(s: string): string {
   const l: number = s.length;
   const r: string[] = new Array(l);
-  
+
   for (let i = 0; i < l; i++) {
     r[i] = ("0" + s.charCodeAt(i).toString(16)).slice(-2);
   }
-  
+
   return r.join("");
 }
 
@@ -51,7 +51,7 @@ export function toBase64Binary(s: string): string {
 
 export function toBase64BinaryOLD(s: string): string {
   const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let result: string[] = [];  
+  let result: string[] = [];
   let i = 0;
   // Convert in blocks of 3 bytes to 4 base64 characters
   while (i < s.length) {
@@ -84,7 +84,7 @@ export function toMonoImage(imgdata: ImageData, s: number, g: number): string {
   const r = new Array(((w + 7) >> 3) * h);
   let n = 0, p = 0, q = 0, t = 128;
   const errorBuffer = s === 1 ? new Array(w).fill(0) : [];
-  
+
   for (let j = 0; j < h; j++) {
     let e1 = 0, e2 = 0;
 

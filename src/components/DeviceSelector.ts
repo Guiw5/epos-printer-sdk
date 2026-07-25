@@ -33,7 +33,7 @@ export class DeviceSelector {
 
     const name = specificDevice ?? NAMES[deviceType];
 
-    // Vendor parity: any load failure surfaces as "ERROR_PARAMETER" — apps
+    // Vendor parity: any load failure surfaces as "ERROR_PARAMETER", apps
     // switch on that exact code (the vendor's eval-based lookup did the
     // same), so loadNamedClass's internal messages must not leak out.
     let deviceClass;
@@ -46,7 +46,7 @@ export class DeviceSelector {
       throw new Error(CONNECTION_ERRORS.ERROR_PARAMETER);
     }
 
-    // Compare against the lookup string, not deviceClass.name — consumer
+    // Compare against the lookup string, not deviceClass.name, consumer
     // bundlers mangle class names in production, which would silently break
     // the 3-arg constructor path for Printer/Display/HybridPrinter*.
     if (this.contextDevices.includes(name)) {

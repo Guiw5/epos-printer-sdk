@@ -4,7 +4,7 @@ import type { PrintServiceResponse } from 'epos-printer-sdk/http';
  * Catalogue of print outcomes and what to do about each one.
  *
  * The codes come from the `code` table in the official ePOS-Print XML manual
- * (Chapter 4 — XML for Controlling Printer), plus ERROR_DEVICE_BUSY, which is
+ * (Chapter 4, XML for Controlling Printer), plus ERROR_DEVICE_BUSY, which is
  * the mapping the SDK applies over the firmware's EX_ENPC_TIMEOUT.
  */
 
@@ -98,7 +98,7 @@ const OUTCOMES: Outcome[] = [
   },
   {
     code: 'EPTR_CUTTER',
-    meaning: 'Auto-cutter error — usually jammed paper.',
+    meaning: 'Auto-cutter error, usually jammed paper.',
     kind: 'operator',
     action: 'Ask for the cutter to be cleared, then call recover() to re-enable printing.',
   },
@@ -124,7 +124,7 @@ const OUTCOMES: Outcome[] = [
   },
   {
     code: 'EPTR_UNRECOVERABLE',
-    meaning: 'Unrecoverable error — normally needs a power cycle.',
+    meaning: 'Unrecoverable error, normally needs a power cycle.',
     kind: 'operator',
     action: 'Ask for the printer to be restarted. recover() is not enough here.',
   },

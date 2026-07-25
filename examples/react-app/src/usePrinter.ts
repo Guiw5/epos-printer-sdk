@@ -73,7 +73,7 @@ export function usePrinter(): UsePrinterResult {
     setError(null);
     try {
       // Demo mode swaps the transport for a simulated printer. Everything
-      // downstream — printing, status, monitoring, error handling — runs the
+      // downstream, printing, status, monitoring, error handling, runs the
       // exact same code paths as against real hardware. onPrint mirrors the
       // simulator's job list into state, since it mutates its own array.
       const sim = demo
@@ -116,7 +116,7 @@ export function usePrinter(): UsePrinterResult {
     const printer = printerRef.current;
     if (!printer) throw new Error(NOT_CONNECTED);
     const res = await printer.send();
-    // A one-off query updates the readout too, not just the monitoring loop —
+    // A one-off query updates the readout too, not just the monitoring loop,
     // otherwise asking for the status appears to do nothing.
     setStatus(decodePrinterStatus(res.status, res.battery));
     return res;
@@ -124,7 +124,7 @@ export function usePrinter(): UsePrinterResult {
 
   // EposHttpPrinter already implements the polling loop (inherited from
   // ePOSPrint.open()/close()) and fires onstatuschange / onbatterystatuschange
-  // as ASB bits change — we just decode those into React state.
+  // as ASB bits change, we just decode those into React state.
   const startMonitoring = useCallback((intervalMs = 3000) => {
     const printer = printerRef.current;
     if (!printer) throw new Error(NOT_CONNECTED);
@@ -176,7 +176,7 @@ export function usePrinter(): UsePrinterResult {
 
         if (attempt < attempts) {
           const delay = baseDelayMs * 2 ** (attempt - 1);
-          onAttempt?.(attempt, `${outcome.code} — retrying in ${delay}ms`);
+          onAttempt?.(attempt, `${outcome.code}, retrying in ${delay}ms`);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }

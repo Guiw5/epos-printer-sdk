@@ -1,4 +1,4 @@
-// Hand-written minimal types for socket.io-client@0.8.7 — the package
+// Hand-written minimal types for socket.io-client@0.8.7, the package
 // predates TypeScript and ships no declarations of its own. Internal only:
 // this file is NOT part of the build output, so nothing in the public .d.ts
 // surface may import from 'socket.io-client' (use LegacySocket from

@@ -35,7 +35,7 @@ export class Connection {
   }
 
   public async probe(url: string, postdata: string): Promise<string> {
-    // Never rejects — matches the vendor SDK's callback-style probe(), which
+    // Never rejects, matches the vendor SDK's callback-style probe(), which
     // always calls back with a result code (OK/ERROR_PARAMETER/ERROR_TIMEOUT)
     // regardless of outcome. Callers like probeWebServiceIF() and
     // handleSocketError() depend on that to always proceed to
@@ -71,7 +71,7 @@ export class Connection {
     }
   }
 
-  // Known gap vs. the vendor SDK (deferred — TM-T88V printer is the only
+  // Known gap vs. the vendor SDK (deferred, TM-T88V printer is the only
   // target device for this release, not ePOS-Display): the original always
   // probes both the print and display service endpoints in parallel. Here
   // the display probe is opt-in via `display`, and no caller currently
@@ -80,7 +80,7 @@ export class Connection {
   // support is ever prioritized.
   public async probeWebServiceIF({ display }: { display?: boolean } = {}): Promise<number> {
     console.log('probeWebServiceIF', this.getOrigin());
-    
+
     const startTime = Date.now();
     const printUrl = `${this.getOrigin()}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
     const printData = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>`;
@@ -95,7 +95,7 @@ export class Connection {
     }
 
     return (Date.now() - startTime);
-  
+
   }
 
   public setSocket(socket: LegacySocket): void {

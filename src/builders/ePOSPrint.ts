@@ -123,7 +123,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     const [first] = params;
     switch (len) {
       case 0: {
-        // No explicit request/printjobid — if something was built via
+        // No explicit request/printjobid, if something was built via
         // chained add*() calls (the EposHttpPrinter pattern: build, then
         // send()), send that instead of silently sending an empty job.
         // Untouched builder state is empty either way, so plain status
@@ -159,7 +159,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
           [address = address, printjobid = printjobid] = params;
         }
         break;
-      }        
+      }
       case 3: {
         // sending job with printjobid to another address
         [address = address, request = request, printjobid = printjobid] = params;
@@ -167,7 +167,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       }
       default: throw new Error("Invalid number of arguments");
     }
-    
+
     return { address, request, printjobid, isPrintRequest };
   }
 
@@ -202,7 +202,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
 
   /**
    * Sends the built request (or, for a status/job query, none) and resolves
-   * with the printer's parsed response directly — no need to wire up
+   * with the printer's parsed response directly: no need to wire up
    * onreceive/onerror first. Rejects (throws) only for an actual print
    * request that failed; a status/job query that can't reach the printer
    * resolves with an ASB_NO_RESPONSE status instead, matching the original
@@ -220,7 +220,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
 
     try {
       let res = await postPrintRequest(address, soap, this.timeout, controller.signal, this.fetchImpl);
-      // Same normalization the vendor applies inside its onreceive path —
+      // Same normalization the vendor applies inside its onreceive path,
       // done here so the resolved promise and the legacy callback report
       // the identical code (apps switch on ERROR_DEVICE_BUSY).
       if (res.code === 'EX_ENPC_TIMEOUT') {

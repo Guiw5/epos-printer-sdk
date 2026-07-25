@@ -67,7 +67,7 @@ export async function postPrintRequest(
 
   try {
     if (previous) {
-      // Only ordering matters here — the previous caller already got its own
+      // Only ordering matters here, the previous caller already got its own
       // result or error.
       await previous.catch(() => undefined);
     }
@@ -115,7 +115,7 @@ async function sendPrintRequest(
       throw new PrintServiceError(res.status, text);
     }
 
-    // Regex parsing on purpose — no DOMParser: that's a browser-only global,
+    // Regex parsing on purpose: no DOMParser: that's a browser-only global,
     // and this transport must run identically in Node (SSR, scripts, API
     // routes). The vendor itself parses this response with the same regexes
     // in its service-probe path (eposdevice.js checkEposPrintService).

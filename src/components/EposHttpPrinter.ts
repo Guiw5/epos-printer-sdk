@@ -2,7 +2,7 @@ import { CanvasPrint } from "./CanvasPrint";
 import type { FetchLike, PrintServiceResponse } from "../builders/httpTransport";
 
 export interface EposHttpPrinterOptions {
-  /** Port used only to pick http vs https — never appended to request URLs. Default: 443 (https). */
+  /** Port used only to pick http vs https, never appended to request URLs. Default: 443 (https). */
   port?: number;
   /** devid query param the printer expects. Default: 'local_printer'. */
   deviceId?: string;
@@ -13,13 +13,13 @@ export interface EposHttpPrinterOptions {
 }
 
 /**
- * Minimal, socket-free client for the ePOS-Print HTTP web service — the
+ * Minimal, socket-free client for the ePOS-Print HTTP web service, the
  * transport a TM-T88V actually uses for plain printing. No ePOSDevice, no
  * createDevice(), no onreceive/onerror wiring required: connect() and
  * send()/print() resolve with the printer's response directly.
  *
  * All the builder methods (addText, addBarcode, addImage, addCut, ...) are
- * inherited from CanvasPrint/ePOSBuilder — chain them, then call send().
+ * inherited from CanvasPrint/ePOSBuilder, chain them, then call send().
  *
  * @example
  * const printer = new EposHttpPrinter('printer.example.com');

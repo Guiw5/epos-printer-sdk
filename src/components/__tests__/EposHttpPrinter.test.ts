@@ -94,7 +94,7 @@ describe('EposHttpPrinter', () => {
     expect(sentBody).toContain('<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print>');
   });
 
-  it('send() consumes the built content — a second chained print does not resend the first (regression: buffer used to accumulate across sends)', async () => {
+  it('send() consumes the built content, a second chained print does not resend the first (regression: buffer used to accumulate across sends)', async () => {
     vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ success: 'true' })));
     const printer = new EposHttpPrinter('printer.example.com');
 

@@ -4,7 +4,7 @@ import type { Printer } from '../../devices/Printer';
 import { RESULT_OK } from '../../constants/devices';
 
 // Hardware integration test: prints a real (tiny) receipt on a physical
-// printer reachable at PRINTER_ADDRESS. Skipped unless that env var is set —
+// printer reachable at PRINTER_ADDRESS. Skipped unless that env var is set,
 // this has a real-world side effect (uses paper), so it only runs opt-in.
 //
 // SAFETY: PRINTER_ADDRESS may point at a production printer shared with

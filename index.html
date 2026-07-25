@@ -1,39 +1,39 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@epos/printer — demo</title>
+    <title>epos-printer-sdk demo</title>
   </head>
   <body>
     <div id="app">
-      <h1>@epos/printer</h1>
-      <p class="subtitle">Ejemplo mínimo de uso de <code>EposHttpPrinter</code> — sin sockets, sin callbacks.</p>
+      <h1>epos-printer-sdk</h1>
+      <p class="subtitle">Minimal <code>EposHttpPrinter</code> example: no sockets, no callbacks.</p>
 
       <section class="card">
-        <h2>1. Conexión</h2>
+        <h2>1. Connection</h2>
         <form id="connect-form">
           <label>
-            Dirección
-            <input id="address" type="text" placeholder="192.168.1.100 o printer.example.com" required />
+            Address
+            <input id="address" type="text" placeholder="192.168.1.100 or printer.example.com" required />
           </label>
           <label>
-            Puerto
+            Port
             <input id="port" type="number" value="443" required />
           </label>
           <div class="actions">
-            <button id="connect-btn" type="submit">Conectar</button>
-            <button id="disconnect-btn" type="button" disabled>Desconectar</button>
+            <button id="connect-btn" type="submit">Connect</button>
+            <button id="disconnect-btn" type="button" disabled>Disconnect</button>
           </div>
         </form>
       </section>
 
       <section class="card">
-        <h2>2. Impresora</h2>
+        <h2>2. Printer</h2>
         <div class="actions">
-          <button id="print-btn" type="button" disabled>Imprimir recibo de prueba</button>
-          <button id="status-btn" type="button" disabled>Consultar estado</button>
+          <button id="print-btn" type="button" disabled>Print a test receipt</button>
+          <button id="status-btn" type="button" disabled>Check status</button>
         </div>
       </section>
 

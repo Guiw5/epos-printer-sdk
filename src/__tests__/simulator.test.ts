@@ -3,7 +3,7 @@ import { createSimulator } from '../simulator';
 import { EposHttpPrinter } from '../components/EposHttpPrinter';
 
 // The simulator's whole value is that code written against it behaves the same
-// against hardware — so these drive it through the real EposHttpPrinter,
+// against hardware, so these drive it through the real EposHttpPrinter,
 // not by calling sim.fetch directly.
 function makePrinter(...args: Parameters<typeof createSimulator>) {
   const sim = createSimulator({ latencyMs: 0, ...args[0] });
@@ -45,7 +45,7 @@ describe('createSimulator', () => {
     expect(res.status & 32).toBeTruthy(); // ASB_COVER_OPEN
   });
 
-  it('an offline printer fails like an unreachable one — connect() throws', async () => {
+  it('an offline printer fails like an unreachable one, connect() throws', async () => {
     const { sim, printer } = makePrinter();
     sim.state.online = false;
 

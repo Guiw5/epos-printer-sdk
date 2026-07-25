@@ -1,5 +1,5 @@
 // Decodes the raw ASB status bitmask (from PrintServiceResponse.status) into
-// a plain object — the ASB_* bit values themselves live as instance
+// a plain object, the ASB_* bit values themselves live as instance
 // constants on ePOSPrint/CanvasPrint/Printer (see ePOSPrint.ts), this just
 // mirrors the ones consumers actually care about day to day.
 

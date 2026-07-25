@@ -26,7 +26,7 @@ vi.mock('socket.io-client', () => {
 
 // connectBySocketIo() lazily does `await import('socket.io-client')` before
 // calling io.connect(...)/registering any listeners, so the mock's `.on(...)`
-// calls don't show up synchronously right after device.connect() — they land
+// calls don't show up synchronously right after device.connect(), they land
 // a few microtask turns later. Poll instead of reading mock.calls immediately.
 async function waitForHandler(
   mockSocket: { on: Mock },
@@ -55,7 +55,7 @@ describe('ePOSDevice Socket Connection', () => {
     // path) falls back to an HTTP probe via Connection.probe(), which would
     // otherwise fire a real XMLHttpRequest at the fake test address. Spied
     // (not vi.restoreAllMocks()'d away) so the io.connect mock's own
-    // implementation — a plain vi.fn(), not a spy on a real method — isn't
+    // implementation, a plain vi.fn(), not a spy on a real method, isn't
     // reset to a no-op by a blanket restore.
     probeSpy = vi.spyOn(Connection.prototype, 'probe').mockResolvedValue(ERRORS.ERROR_PARAMETER);
   });
@@ -76,7 +76,7 @@ describe('ePOSDevice Socket Connection', () => {
 
     // 3. Simulate the server's CONNECT message. parseRequestMessage()
     // reads these positionally (message[0]/[1]/[2]...), matching
-    // ePosDeviceMessage.toTransmissionForm() — not a {request, data} object.
+    // ePosDeviceMessage.toTransmissionForm(), not a {request, data} object.
     const messageCallback = await waitForHandler(mockSocket, 'message');
     messageCallback([
       REQUEST.CONNECT,
@@ -113,7 +113,7 @@ describe('ePOSDevice Socket Connection', () => {
     const connectPromise = device.connect('192.168.1.1', 8008);
 
     // 2. Simulate a connection error (falls back to the mocked HTTP
-    // probe above, which resolves to ERROR_PARAMETER — never OK)
+    // probe above, which resolves to ERROR_PARAMETER, never OK)
     const errorCallback = await waitForHandler(mockSocket, 'error');
     errorCallback(new Error('Connection failed'));
 
@@ -127,7 +127,7 @@ describe('ePOSDevice Socket Connection', () => {
     const connectPromise = device.connect('192.168.1.1', 8008);
 
     // Force the "retry window exhausted" branch of procPubkey's mismatch
-    // handling (mismatchTimeout >= CONNECT_TIMEOUT) — otherwise a mismatch
+    // handling (mismatchTimeout >= CONNECT_TIMEOUT), otherwise a mismatch
     // just schedules a silent retry and connect() never settles.
     (device as unknown as { connectStartTime: number }).connectStartTime = Date.now() - CONNECT_TIMEOUT - 1000;
 

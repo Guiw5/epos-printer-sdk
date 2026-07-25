@@ -6,7 +6,7 @@ import PrinterCard from '../PrinterCard';
 /**
  * End-to-end through the real stack: the UI drives the usePrinter hook, which
  * drives EposHttpPrinter, which posts through the simulator's fetch. Nothing
- * here is mocked — if the library breaks, these fail.
+ * here is mocked, if the library breaks, these fail.
  */
 async function connectInDemoMode(user: ReturnType<typeof userEvent.setup>) {
   render(<PrinterCard label="Printer 1" onRemove={() => {}} />);

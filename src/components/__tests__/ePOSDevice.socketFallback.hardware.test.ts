@@ -4,16 +4,16 @@ import type { Printer } from '../../devices/Printer';
 import { RESULT_OK, IFPORT_EPOSDEVICE } from '../../constants/devices';
 
 // Hardware test (opt-in via PRINTER_ADDRESS): connects using the SOCKET API
-// (no eposprint flag) against a plain TM-T88V — a model that hosts no
+// (no eposprint flag) against a plain TM-T88V, a model that hosts no
 // ePOS-Device service (per the official manual, only TM-i/TM-DT/T88VI+ do).
 //
 // The point is to prove the vendor-faithful graceful degradation: the socket
 // transport fails → handleSocketError() probes the HTTP service → connect()
 // still resolves "OK" and printing works through checkEposPrintService.
 // This transparent fallback is why the socket API *appeared* to work on
-// this hardware historically — it was HTTP underneath all along.
+// this hardware historically, it was HTTP underneath all along.
 //
-// SAFETY: production printer — normal print calls only, tiny output.
+// SAFETY: production printer, normal print calls only, tiny output.
 describe.skipIf(!process.env.PRINTER_ADDRESS)('ePOSDevice socket → HTTP fallback (hardware)', () => {
   let device: ePOSDevice;
 
