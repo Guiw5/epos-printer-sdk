@@ -24,6 +24,9 @@ export {
 };
 export type { EposHttpPrinterOptions } from "./components/EposHttpPrinter";
 export type { PrintServiceResponse } from "./builders/httpTransport";
+export type { IDevice, DeviceType } from "./types";
+export type { CAT } from "./devices/CAT";
+export type { CashChanger } from "./devices/CashChanger";
 export { decodePrinterStatus } from "./builders/printerStatus";
 export type { PrinterStatus, PaperState } from "./builders/printerStatus";
 export type {

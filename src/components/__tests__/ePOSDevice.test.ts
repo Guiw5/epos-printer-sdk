@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ePOSDevice } from '../ePOSDevice';
-import { RESULTS } from '../../constants/results';
-import { ERRORS } from '../../constants/connection';
+import { RESULTS, ERRORS } from '../../constants/connection';
 // import { Socket } from 'socket.io-client';
 
 // Hardware integration tests: exercise real network calls against a printer
