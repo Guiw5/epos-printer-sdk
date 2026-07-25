@@ -12,7 +12,7 @@ export function drawDemoCanvas(): HTMLCanvasElement {
   ctx.fillStyle = '#000';
   ctx.font = 'bold 28px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('@epos/printer', canvas.width / 2, 40);
+  ctx.fillText('epos-printer-sdk', canvas.width / 2, 40);
 
   ctx.font = '16px sans-serif';
   ctx.fillText('Canvas print job demo', canvas.width / 2, 68);

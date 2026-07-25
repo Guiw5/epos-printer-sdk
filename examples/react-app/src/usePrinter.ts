@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { EposHttpPrinter, decodePrinterStatus } from '@epos/printer/http';
-import type { PrintServiceResponse, PrinterStatus, BarcodeType, Hri, SymbolType, Level } from '@epos/printer/http';
+import { EposHttpPrinter, decodePrinterStatus } from 'epos-printer-sdk/http';
+import type { PrintServiceResponse, PrinterStatus, BarcodeType, Hri, SymbolType, Level } from 'epos-printer-sdk/http';
 import { explainResponse, explainError, type Outcome } from './printOutcomes';
 
 export type PrinterConnectionState = 'idle' | 'connecting' | 'connected' | 'error';

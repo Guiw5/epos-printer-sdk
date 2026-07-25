@@ -1,5 +1,5 @@
 import { FormEvent, useRef, useState } from 'react';
-import type { BarcodeType, PrintServiceResponse, SymbolType } from '@epos/printer/http';
+import type { BarcodeType, PrintServiceResponse, SymbolType } from 'epos-printer-sdk/http';
 import { usePrinter } from './usePrinter';
 import { useLog } from './useLog';
 import { drawDemoCanvas } from './demoCanvas';

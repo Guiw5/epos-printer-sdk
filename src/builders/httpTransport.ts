@@ -24,13 +24,55 @@ export function buildSoapEnvelope(body: string, printjobid?: string): string {
   return `<?xml version="1.0" encoding="utf-8"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">${header}<s:Body>${body}</s:Body></s:Envelope>`;
 }
 
+// One in-flight chain per endpoint URL, shared by every printer instance
+// pointing at it. The printer processes requests one at a time regardless:
+// firing 10 concurrent status queries at a real TM-T88V returns 10 successes,
+// but the last one takes ~4.9s versus ~180ms on its own. Left unserialized,
+// enough concurrency pushes later requests past their client-side timeout and
+// they fail for no reason other than queueing. Different endpoints (different
+// printers) still run fully in parallel.
+const inFlightByEndpoint = new Map<string, Promise<void>>();
+
 /**
  * POSTs a SOAP-wrapped ePOS-Print request and parses the <response> element
  * back into a plain object. Rejects with PrintServiceError on network
  * failure, timeout, a non-200 response, or a response with no <response>
  * element to parse.
+ *
+ * Requests to the same endpoint are serialized (see above); the per-request
+ * timeout starts when the request is actually sent, not while it waits its
+ * turn, so queueing never eats into a job's own timeout budget.
  */
 export async function postPrintRequest(
+  address: string,
+  soap: string,
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<PrintServiceResponse> {
+  const previous = inFlightByEndpoint.get(address);
+
+  let markDone!: () => void;
+  const done = new Promise<void>((resolve) => {
+    markDone = resolve;
+  });
+  inFlightByEndpoint.set(address, done);
+
+  try {
+    if (previous) {
+      // Only ordering matters here — the previous caller already got its own
+      // result or error.
+      await previous.catch(() => undefined);
+    }
+    return await sendPrintRequest(address, soap, timeoutMs, signal);
+  } finally {
+    markDone();
+    if (inFlightByEndpoint.get(address) === done) {
+      inFlightByEndpoint.delete(address);
+    }
+  }
+}
+
+async function sendPrintRequest(
   address: string,
   soap: string,
   timeoutMs: number,

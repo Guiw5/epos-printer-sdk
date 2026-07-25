@@ -1,8 +1,8 @@
-# @epos/printer — React example
+# epos-printer-sdk — React example
 
-Minimal React app showing how to integrate `@epos/printer` (the `/http` entry — see the root [README](../../README.md)) into a React app via a small `usePrinter` hook.
+Minimal React app showing how to integrate `epos-printer-sdk` (the `/http` entry — see the root [README](../../README.md)) into a React app via a small `usePrinter` hook.
 
-It depends on the library through `"@epos/printer": "link:../.."`, i.e. the **real built package** (`dist/`, resolved through `package.json`'s `exports` map), not the source tree directly — this is what a real consumer's install would look like.
+It depends on the library through `"epos-printer-sdk": "link:../.."`, i.e. the **real built package** (`dist/`, resolved through `package.json`'s `exports` map), not the source tree directly — this is what a real consumer's install would look like.
 
 ## Running it
 

@@ -1,4 +1,4 @@
-import type { BarcodeType, SymbolType } from '@epos/printer/http';
+import type { BarcodeType, SymbolType } from 'epos-printer-sdk/http';
 
 // Verified against the official ePOS-Print XML User's Manual (Rev.AF),
 // Chapter 4 XML Reference — <barcode> and <symbol> "type" attribute tables.

@@ -19,7 +19,7 @@ against real TM-T88V hardware.
   ePOS-Print HTTP service. No `ePOSDevice`, no `createDevice()`, no callback
   wiring: `connect()` and `send()` resolve with the printer's parsed
   response.
-- **`@epos/printer/http` subpath export** — HTTP-only entry point that never
+- **`epos-printer-sdk/http` subpath export** — HTTP-only entry point that never
   pulls in `socket.io-client` or the crypto stack (~21 kB vs ~74 kB).
 - **`decodePrinterStatus()`** — decodes the raw ASB bitmask into
   `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
@@ -30,7 +30,14 @@ against real TM-T88V hardware.
 - **React example app** (`examples/react-app`) — connection, monitoring,
   barcodes/QR, page-mode labels, canvas printing with job tracking, and a
   catalogue of all 21 response codes with the recommended action for each.
-- **Test suite** — 57 unit tests plus opt-in hardware tests (skipped unless
+- **Automatic per-endpoint request serialization** — the printer processes
+  HTTP requests one at a time regardless (10 concurrent status queries against
+  a real TM-T88V all succeed, but the last takes ~4.9s versus ~180ms alone), so
+  overlapping requests only burn their own client-side timeout while queued.
+  Requests to the same endpoint now run in order; different printers still run
+  in parallel. Measured against real hardware with a 2s timeout and 10
+  concurrent jobs: 4/10 succeeded before, 10/10 after.
+- **Test suite** — 60 unit tests plus opt-in hardware tests (skipped unless
   `PRINTER_ADDRESS` is set).
 
 ### Fixed

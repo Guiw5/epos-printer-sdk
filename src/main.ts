@@ -68,7 +68,7 @@ printBtn.addEventListener('click', async () => {
     const result = await printer
       .addTextAlign(printer.ALIGN_CENTER)
       .addTextSize(2, 2)
-      .addText('@epos/printer demo\n')
+      .addText('epos-printer-sdk demo\n')
       .addTextSize(1, 1)
       .addFeedLine(1)
       .addCut('feed')

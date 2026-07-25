@@ -92,4 +92,59 @@ describe('postPrintRequest', () => {
     expect(error).toBeInstanceOf(PrintServiceError);
     expect(error.status).toBe(0);
   });
+
+  describe('per-endpoint serialization', () => {
+    // Resolves each fetch manually so overlap is observable rather than timed.
+    function deferredFetch() {
+      const pending: Array<{ url: string; release: () => void }> = [];
+      vi.mocked(fetch).mockImplementation((url) =>
+        new Promise((resolve) => {
+          pending.push({
+            url: String(url),
+            release: () => resolve(fakeResponse(200, SUCCESS_XML)),
+          });
+        })
+      );
+      return pending;
+    }
+
+    it('runs one request at a time against the same endpoint', async () => {
+      const pending = deferredFetch();
+
+      const first = postPrintRequest('https://printer.example/svc', '<a/>', 5000);
+      const second = postPrintRequest('https://printer.example/svc', '<b/>', 5000);
+
+      // The second request must not have reached fetch yet.
+      await Promise.resolve();
+      expect(pending).toHaveLength(1);
+
+      pending[0].release();
+      await first;
+
+      await vi.waitFor(() => expect(pending).toHaveLength(2));
+      pending[1].release();
+      await expect(second).resolves.toMatchObject({ success: true });
+    });
+
+    it('still runs different endpoints in parallel', async () => {
+      const pending = deferredFetch();
+
+      const a = postPrintRequest('https://printer-a/svc', '<a/>', 5000);
+      const b = postPrintRequest('https://printer-b/svc', '<b/>', 5000);
+
+      await vi.waitFor(() => expect(pending).toHaveLength(2));
+
+      pending[0].release();
+      pending[1].release();
+      await expect(Promise.all([a, b])).resolves.toHaveLength(2);
+    });
+
+    it('a failed request does not wedge the endpoint for the next one', async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      vi.mocked(fetch).mockResolvedValueOnce(fakeResponse(200, SUCCESS_XML));
+
+      await expect(postPrintRequest('https://printer.example/svc', '<a/>', 5000)).rejects.toBeInstanceOf(PrintServiceError);
+      await expect(postPrintRequest('https://printer.example/svc', '<b/>', 5000)).resolves.toMatchObject({ success: true });
+    });
+  });
 });

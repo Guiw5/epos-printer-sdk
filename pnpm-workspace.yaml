@@ -1,3 +1,8 @@
+# Without this list, `pnpm install` inside examples/react-app silently
+# resolves to this root workspace and installs nothing there.
+packages:
+  - 'examples/*'
+
 allowBuilds:
   esbuild: true
   unrs-resolver: true

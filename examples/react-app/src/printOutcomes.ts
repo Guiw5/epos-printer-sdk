@@ -1,4 +1,4 @@
-import type { PrintServiceResponse } from '@epos/printer/http';
+import type { PrintServiceResponse } from 'epos-printer-sdk/http';
 
 /**
  * Catálogo de resultados de impresión y qué hacer con cada uno.

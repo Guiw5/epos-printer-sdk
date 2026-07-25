@@ -21,9 +21,9 @@ export default function App() {
 
   return (
     <main className="app">
-      <h1>@epos/printer — ejemplo React</h1>
+      <h1>epos-printer-sdk — ejemplo React</h1>
       <p className="subtitle">
-        Casos de uso con el hook <code>usePrinter</code> (<code>@epos/printer/http</code>). Cada tarjeta es una
+        Casos de uso con el hook <code>usePrinter</code> (<code>epos-printer-sdk/http</code>). Cada tarjeta es una
         impresora independiente — su propia conexión, estado y log — para probar el manejo de varias a la vez.
       </p>
 
