@@ -23,18 +23,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm exec tsc --noEmit
+      # Build first: linting the example app resolves `epos-printer-sdk/*`
+      # through the package exports map, so dist/ has to exist. `build` runs
+      # `tsc --noEmit` itself, so this typechecks too.
+      - name: Build
+        run: pnpm build
 
       - name: Lint
         run: pnpm lint
 
       # Hardware tests self-skip: PRINTER_ADDRESS is intentionally unset in CI.
       - name: Test
-        run: pnpm exec vitest run
+        run: pnpm test
 
-      - name: Build
-        run: pnpm build
+      - name: Test demo
+        run: pnpm test:react
 
       - name: Verify package contents
         run: npm pack --dry-run
