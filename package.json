@@ -65,15 +65,19 @@
     "access": "public"
   },
   "scripts": {
-    "dev": "vite",
     "build": "tsc --noEmit && vite build && tsc -p tsconfig.build.json",
-    "prepublishOnly": "pnpm run build",
-    "preview": "vite preview",
-    "lint": "eslint .",
-    "doc": "typedoc --entryPoints src/index.ts --out docs",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:debug": "vitest --inspect-brk --no-file-parallelism --test-timeout=0"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "docs": "typedoc --entryPoints src/index.ts --out docs",
+    "dev:react": "pnpm --filter epos-printer-react-example dev",
+    "build:react": "pnpm build && pnpm --filter epos-printer-react-example build",
+    "test:react": "pnpm --filter epos-printer-react-example test",
+    "dev:vanilla": "vite",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:react && pnpm build",
+    "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
     "socket.io-client": "0.8.7"

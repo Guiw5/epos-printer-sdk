@@ -10,16 +10,27 @@ This repo uses **pnpm**. The example app is a workspace package, so install
 from the root.
 
 ```bash
-pnpm install          # installs root + examples/*
-pnpm build            # typecheck, bundle to dist/, emit .d.ts
-pnpm test             # vitest (watch)
-pnpm exec vitest run  # vitest (single run, what CI does)
-pnpm lint             # eslint
-pnpm exec tsc --noEmit  # typecheck, tests included
-pnpm dev              # vanilla demo at index.html / src/main.ts
+pnpm install       # installs root + examples/*
+
+# the library
+pnpm typecheck     # tsc --noEmit, tests included
+pnpm lint          # eslint
+pnpm test          # unit tests (library only)
+pnpm test:watch    # same, in watch mode
+pnpm build         # typecheck, bundle to dist/, emit .d.ts
+pnpm docs          # TypeDoc API reference
+
+# the React demo (examples/react-app)
+pnpm dev:react     # dev server for the demo
+pnpm test:react    # the demo's own tests (React plugin + jest-dom)
+pnpm build:react   # builds the library, then the demo
+
+# everything CI runs, in one command
+pnpm verify
 ```
 
-CI runs typecheck → lint → tests → build → `npm pack --dry-run`.
+`pnpm test` deliberately excludes `examples/**`: the demo is a workspace
+package with its own vitest config, so its tests run through `pnpm test:react`.
 
 ## What this project is
 

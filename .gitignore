@@ -36,3 +36,7 @@ sdk/manuals/*.pdf
 # React example app (its own dependency tree)
 examples/react-app/node_modules
 examples/react-app/dist
+# Installed agent skills — vendored copies, restored with `npx skills add`.
+# skills-lock.json is tracked so the set stays reproducible.
+.agents/skills/
+.claude/skills/

@@ -35,5 +35,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     env: loadEnv('test', process.cwd(), ''),
+    exclude: ['**/node_modules/**', '**/dist/**', 'examples/**'],
   }
 });
