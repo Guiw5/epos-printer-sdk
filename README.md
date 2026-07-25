@@ -372,8 +372,15 @@ several printers at once, lives in [`examples/react-app`](examples/react-app).
 
 ## Device management (`ePOSDevice`)
 
-Beyond plain printing, the full SDK surface is available for cash drawers, CAT
-terminals and DeviceTerminal, over the ePOS-Device socket transport:
+Beyond plain printing, `ePOSDevice` is the session and device-management layer:
+connection lifecycle, `createDevice()`, communication boxes. Despite the name it
+is not tied to the socket transport, it runs over either one and picks which.
+Pass `{ eposprint: true }` to go straight to HTTP; otherwise it tries the socket
+and falls back to HTTP on its own.
+
+Use it when you need devices beyond a plain printer (cash drawers, CAT
+terminals, DeviceTerminal). For printing alone, `EposHttpPrinter` is lighter and
+never loads any of this.
 
 ```ts
 import { ePOSDevice } from 'epos-printer-sdk';
@@ -385,6 +392,10 @@ if (result !== 'OK') throw new Error(result);
 const printer = await epos.createDevice('local_printer', 'type_printer');
 await printer.addText('Hi\n').addCut('feed').send();
 ```
+
+Note the port rule differs from `EposHttpPrinter`: here only `8008` selects
+plain HTTP, anything else (including `80`) is treated as HTTPS. That is the
+vendor's own mapping, kept for parity.
 
 Note that plain **TM-T88V** printers don't host the ePOS-Device service at all
 (only TM-i, TM-DT and TM-T88VI+ models do), on those, `connect()` transparently

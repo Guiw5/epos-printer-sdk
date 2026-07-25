@@ -378,9 +378,15 @@ acciones recomendadas y varias impresoras a la vez, está en
 
 ## Gestión de dispositivos (`ePOSDevice`)
 
-Más allá de la impresión, está disponible toda la superficie del SDK para
-cajones de dinero, terminales CAT y DeviceTerminal, sobre el transporte
-ePOS-Device por socket:
+Más allá de la impresión, `ePOSDevice` es la capa de sesión y gestión de
+dispositivos: ciclo de vida de la conexión, `createDevice()`, cajas de
+comunicación. A pesar del nombre no está atado al transporte por socket: corre
+sobre cualquiera de los dos y decide cuál. Pasá `{ eposprint: true }` para ir
+directo por HTTP; si no, intenta el socket y cae solo a HTTP.
+
+Usalo cuando necesites dispositivos más allá de una impresora (cajones,
+terminales CAT, DeviceTerminal). Para imprimir nada más, `EposHttpPrinter` es
+más liviano y nunca carga nada de esto.
 
 ```ts
 import { ePOSDevice } from 'epos-printer-sdk';
@@ -392,6 +398,10 @@ if (result !== 'OK') throw new Error(result);
 const printer = await epos.createDevice('local_printer', 'type_printer');
 await printer.addText('Hola\n').addCut('feed').send();
 ```
+
+Ojo que la regla de puerto difiere de `EposHttpPrinter`: acá solo `8008`
+selecciona HTTP plano, cualquier otro (incluido `80`) se toma como HTTPS. Es el
+mapeo del vendor original, conservado por paridad.
 
 Tené en cuenta que las **TM-T88V** comunes no hospedan el servicio ePOS-Device
 (solo lo hacen los modelos TM-i, TM-DT y TM-T88VI en adelante), en esas,

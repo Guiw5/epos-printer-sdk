@@ -76,7 +76,7 @@ if (!result.success) console.error(result.code);
 - `decodePrinterStatus(status, battery)`, decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
 - Builder (chainable): `addText`, `addTextAlign`, `addTextSize`, `addTextStyle`, `addTextFont`, `addTextDouble`, `addTextLang`, `addTextLineSpace`, `addTextRotate`, `addTextSmooth`, `addTextPosition`, `addTextVPosition`, `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`, `addLayout`, `addHLine`, `addVLineBegin`, `addVLineEnd`, `addRotateBegin`, `addRotateEnd`, `addBarcode`, `addSymbol`, `addImage`, `addLogo`, `addPageBegin`, `addPageArea`, `addPageDirection`, `addPagePosition`, `addPageLine`, `addPageRectangle`, `addPageEnd`, `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`, `addCommand`.
 - Events (push-based state): `onstatuschange`, `onbatterystatuschange`, `ononline`, `onoffline`, `onpoweroff`, `oncoveropen`, `oncoverok`, `onpaperend`, `onpapernearend`, `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`, `onreceive`, `onerror`.
-- `ePOSDevice` (full entry only), device management over the socket transport: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
+- `ePOSDevice` (full entry only) is the session and device-management layer, not a transport: it runs over HTTP or the socket and decides which (`{ eposprint: true }` forces HTTP). Nothing extends it; the builder chain is separate. API: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
 
 ## Error codes
 

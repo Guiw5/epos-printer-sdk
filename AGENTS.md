@@ -35,13 +35,28 @@ package with its own vitest config, so its tests run through `pnpm test:react`.
 ## What this project is
 
 A ground-up TypeScript reimplementation of Epson's ePOS-Print protocol, derived
-by reverse-engineering their official SDK. Two transports:
+by reverse-engineering their official SDK.
 
-- **HTTP (ePOS-Print)**: the maintained path. `EposHttpPrinter`, stateless,
-  `fetch`-based. This is what real TM-T88V hardware uses.
-- **Socket (ePOS-Device)**: `ePOSDevice`, legacy Socket.IO. Deprioritized: a
-  plain TM-T88V doesn't host that service at all, and its crypto handshake is
-  unvalidated against real hardware.
+Two things are easy to conflate, so keep them apart:
+
+**Transports.** *HTTP (ePOS-Print)* is the maintained one: stateless, `fetch`,
+what real TM-T88V hardware uses. *Socket (ePOS-Device service)* is
+deprioritized: a plain TM-T88V doesn't host that service at all, and its crypto
+handshake is unvalidated against real hardware.
+
+**Layers.** `ePOSDevice` is *not* the socket transport, even though it is named
+after the socket-era service. It is the session and device-management layer:
+connection lifecycle, `createDevice()`, `CommBox`, `Ofsc`. It runs over either
+transport, and decides which one, `connect(addr, port, { eposprint: true })`
+goes straight to HTTP, otherwise it tries the socket and falls back to HTTP.
+Devices it hands back consult it (`ePosDev.getEposprint()`) to pick their own
+send path. Verified against real hardware: connect, createDevice and send all
+work with no socket.io installed.
+
+Nothing extends `ePOSDevice`. The builder chain is separate and independent:
+`ePOSBuilder` -> `ePOSPrint` -> `CanvasPrint` -> `EposHttpPrinter` / `Printer`.
+`EposHttpPrinter` never touches `ePOSDevice`, which is what keeps the
+`/http` entry free of the socket stack.
 
 ```
 src/builders/     ePOSBuilder (XML construction), ePOSPrint (HTTP send +
