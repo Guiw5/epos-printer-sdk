@@ -6,6 +6,8 @@
 [![types](https://img.shields.io/npm/types/epos-printer-sdk.svg)](https://www.typescriptlang.org/)
 
 [English](./README.md) · **Español**
+**[Probala en el navegador](https://guiw5.github.io/epos-printer-sdk/)**, la demo corre contra una impresora simulada, así que no hace falta hardware.
+
 
 Imprimí en impresoras de tickets Epson **TM** desde JavaScript, por HTTP, con
 `async`/`await`, tipos completos de TypeScript y sin dependencias.
@@ -264,6 +266,32 @@ async function printWithRetry(job: () => Promise<PrintServiceResponse>, intentos
 La [app de ejemplo en React](examples/react-app) implementa esto de punta a
 punta, con un panel que clasifica cada código de respuesta y ofrece la acción
 correspondiente.
+
+## Probar sin impresora
+
+`epos-printer-sdk/simulator` es una impresora simulada que le pasás a
+`EposHttpPrinter`. Habla el protocolo real, así que el código escrito contra
+ella se comporta igual contra el hardware, y modela el estado de papel, tapa y
+cajón para poder ejercitar los caminos de error a propósito.
+
+```ts
+import { EposHttpPrinter } from 'epos-printer-sdk/http';
+import { createSimulator } from 'epos-printer-sdk/simulator';
+
+const sim = createSimulator({ initialState: { paper: 2 } });
+const printer = new EposHttpPrinter('demo', { fetch: sim.fetch });
+
+await printer.addText('hola
+').addCut('feed').send();
+sim.jobs[0].text;            // 'hola
+'
+
+sim.state.coverOpen = true;  // la próxima impresión falla con EPTR_COVER_OPEN
+```
+
+Es un entry point aparte, así que nada de esto llega a quien no lo importe. La
+[demo en vivo](https://guiw5.github.io/epos-printer-sdk/) corre enteramente
+sobre él, por eso no necesita ninguna impresora en la red.
 
 ## API
 

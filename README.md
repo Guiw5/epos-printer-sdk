@@ -7,6 +7,8 @@
 [![bundle](https://img.shields.io/bundlephobia/minzip/epos-printer-sdk?label=http%20entry)](https://bundlephobia.com/package/epos-printer-sdk)
 
 **English** · [Español](./README.es.md)
+**[Try it in the browser](https://guiw5.github.io/epos-printer-sdk/)**, the demo runs against a simulated printer, so no hardware is needed.
+
 
 Print to Epson **TM** receipt printers from JavaScript, over plain HTTP, with
 `async`/`await`, full TypeScript types, and no dependencies.
@@ -261,6 +263,32 @@ async function printWithRetry(job: () => Promise<PrintServiceResponse>, attempts
 
 The [React example app](examples/react-app) implements this end to end, with a
 panel that classifies every response code and offers the matching action.
+
+## Testing without a printer
+
+`epos-printer-sdk/simulator` is a simulated printer you can hand to
+`EposHttpPrinter`. It speaks the real protocol, so code written against it
+behaves the same against hardware, and it models paper, cover and drawer state
+so failure paths can be exercised on purpose.
+
+```ts
+import { EposHttpPrinter } from 'epos-printer-sdk/http';
+import { createSimulator } from 'epos-printer-sdk/simulator';
+
+const sim = createSimulator({ initialState: { paper: 2 } });
+const printer = new EposHttpPrinter('demo', { fetch: sim.fetch });
+
+await printer.addText('hello
+').addCut('feed').send();
+sim.jobs[0].text;            // 'hello
+'
+
+sim.state.coverOpen = true;  // the next print fails with EPTR_COVER_OPEN
+```
+
+It is a separate entry point, so none of it reaches consumers who don't import
+it. The [live demo](https://guiw5.github.io/epos-printer-sdk/) runs entirely on
+it, which is why it needs no printer on the network.
 
 ## API
 

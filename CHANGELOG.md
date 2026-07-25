@@ -23,13 +23,25 @@ against real TM-T88V hardware.
   pulls in `socket.io-client` or the crypto stack (~21 kB vs ~74 kB).
 - **`decodePrinterStatus()`**: decodes the raw ASB bitmask into
   `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
+- **`epos-printer-sdk/simulator`**: a simulated printer you can hand to
+  `EposHttpPrinter` through the new `fetch` option, so integrations can be
+  built and tested without hardware. It speaks the real protocol (parses the
+  SOAP body, answers with genuine ePOS-Print XML and ASB status words) and
+  models paper, cover and drawer state, so code written against it behaves the
+  same against a real printer. Separate entry point: none of it ships to
+  consumers who don't import it.
+- **Swappable transport**: `EposHttpPrinter` accepts a `fetch` option, for the
+  simulator, a test double, or routing requests through a proxy.
 - **Promise-based device management**: `createDevice()` resolves with the
   opened device; `CommBoxManager.openCommBox()/closeCommBox()` and
   `CommBox.send()/getCommHistory()` resolve with their results and reject
   with the vendor's error codes. Legacy callbacks still fire.
-- **React example app** (`examples/react-app`), connection, monitoring,
-  barcodes/QR, page-mode labels, canvas printing with job tracking, and a
-  catalogue of all 21 response codes with the recommended action for each.
+- **React example app** (`examples/react-app`), published as a live demo that
+  runs against the simulator, so it works with no printer on the network. It
+  is organised as a recipe book: each entry prints something and can reveal
+  the source that produced it, every printed job renders as paper and can be
+  flipped to the raw ePOS-Print XML that was sent, and all 21 response codes
+  are catalogued with the recommended action for each.
 - **Automatic per-endpoint request serialization**: the printer processes
   HTTP requests one at a time regardless (10 concurrent status queries against
   a real TM-T88V all succeed, but the last takes ~4.9s versus ~180ms alone), so
@@ -37,8 +49,10 @@ against real TM-T88V hardware.
   Requests to the same endpoint now run in order; different printers still run
   in parallel. Measured against real hardware with a 2s timeout and 10
   concurrent jobs: 4/10 succeeded before, 10/10 after.
-- **Test suite**: 60 unit tests plus opt-in hardware tests (skipped unless
-  `PRINTER_ADDRESS` is set).
+- **Test suite**: 71 unit tests for the library and 18 for the demo, plus
+  opt-in hardware tests that self-skip unless `PRINTER_ADDRESS` is set.
+- **`pnpm release`**: one command for the whole release process, with the
+  version bump rolled back automatically if publishing fails.
 
 ### Changed
 
