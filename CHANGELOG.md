@@ -8,6 +8,24 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
+## [0.2.1], Unreleased
+
+Documentation, plus a release-tooling fix. 0.2.0 reached the registry before
+the documentation pass finished, and published versions cannot be replaced, so
+the corrected README ships here.
+
+### Fixed
+
+- The npm page carried the pre-edit README: no mention of
+  `epos-printer-sdk/simulator` and no link to the live demo.
+- `ePOSDevice` was described as "the socket transport". It is the session and
+  device-management layer and runs over either transport, verified against real
+  hardware over HTTP with no socket involved.
+- `pnpm release` checks the registry during preflight instead of running the
+  whole suite and then failing on a 403 that reads like a permissions error. It
+  also no longer stamps the changelog or moves the tag before publishing, so a
+  failed publish leaves the working tree untouched.
+
 ## [0.2.0], 2026-07-25
 
 First release candidate: the HTTP printing path is validated end to end

@@ -160,35 +160,42 @@ if (tarball.files.some((f) => /(^|\/)(\.env|\.npmrc)$/.test(f.path))) {
   die('The tarball contains an env or npmrc file.', 'Check "files" in package.json.');
 }
 
-// ── 4. Bump ─────────────────────────────────────────────────────────────
+// ── 4. Stage the release, without committing anything ───────────────────
+// Only working-tree edits happen here. Nothing is committed, tagged or pushed
+// until npm has accepted the package, so a failed publish leaves the repo
+// exactly as it was rather than a stamped changelog and a moved tag.
 
-if (bump) {
+const before = { pkg: readFileSync(PKG, 'utf8'), changelog: readFileSync(CHANGELOG, 'utf8') };
+const restore = () => {
+  writeFileSync(PKG, before.pkg);
+  writeFileSync(CHANGELOG, before.changelog);
+};
+
+if (bump && !dryRun) {
   say(`Bump version (${bump})`);
-  if (dryRun) {
-    warn('dry run, skipping bump');
-  } else {
-    // Creates the commit and the vX.Y.Z tag in one step.
-    runLive('npm', ['version', bump, '-m', 'chore(release): v%s']);
-    ok(`now ${readPkg().version}`);
-  }
+  // --no-git-tag-version: edit package.json only, we commit after publishing.
+  run('npm', ['version', bump, '--no-git-tag-version']);
+  ok(`now ${readPkg().version}`);
+} else if (bump) {
+  say(`Bump version (${bump})`);
+  warn('dry run, skipping bump');
 }
 
-const version = dryRun && bump ? `${pkg.version} (unbumped, dry run)` : readPkg().version;
-const tag = `v${readPkg().version}`;
+const version = readPkg().version;
+const tag = `v${version}`;
 
-// Stamp the changelog heading for this version, if it's still marked pending.
-if (!dryRun) {
+say('Changelog');
+{
   const log = readFileSync(CHANGELOG, 'utf8');
-  const pending = new RegExp(`(## \\[${readPkg().version}\\][^\\n]*?), Unreleased`);
+  const pending = new RegExp(`(## \\[${version}\\][^\\n]*?), Unreleased`);
   if (pending.test(log)) {
     const today = new Date().toISOString().slice(0, 10);
-    writeFileSync(CHANGELOG, log.replace(pending, `$1, ${today}`));
-    run('git', ['add', 'CHANGELOG.md']);
-    run('git', ['commit', '--amend', '--no-edit']);
-    run('git', ['tag', '-f', tag]);
-    ok(`changelog dated ${today}`);
-  } else if (!log.includes(`## [${readPkg().version}]`)) {
-    warn(`CHANGELOG.md has no entry for ${readPkg().version}`);
+    if (!dryRun) writeFileSync(CHANGELOG, log.replace(pending, `$1, ${today}`));
+    ok(`entry for ${version} dated ${today}`);
+  } else if (log.includes(`## [${version}]`)) {
+    ok(`entry for ${version} already dated`);
+  } else {
+    warn(`no entry for ${version}; the release notes will be empty`);
   }
 }
 
@@ -199,7 +206,8 @@ if (!dryRun) {
 say(`Publish ${readPkg().name}@${version}`);
 
 if (dryRun) {
-  warn('dry run, not publishing, not pushing');
+  restore();
+  warn('dry run, nothing published, nothing committed');
   console.log(`\n${c.green('✓')} Dry run finished. Re-run without --dry-run to release.\n`);
   process.exit(0);
 }
@@ -209,18 +217,22 @@ try {
   runLive('npm', ['publish']);
   ok('published');
 } catch {
-  if (bump) {
-    warn('publish failed, rolling back the version commit and tag');
-    run('git', ['tag', '-d', tag]);
-    run('git', ['reset', '--hard', 'HEAD~1']);
-  }
+  restore();
   die(
-    'npm publish failed.',
-    'If it asked for 2FA: enable it at npmjs.com (Account → Two-Factor Authentication), then retry.'
+    'npm publish failed. The working tree was left untouched.',
+    'If it asked for 2FA: enable it at npmjs.com (Account, Two-Factor Authentication), then retry.'
   );
 }
 
-// ── 6. Push ─────────────────────────────────────────────────────────────
+// ── 6. Record and push ──────────────────────────────────────────────────
+// Past the point of no return: the package is public, so the commit and tag
+// have to land even if something here needs a retry.
+
+say('Record the release');
+run('git', ['add', 'package.json', 'CHANGELOG.md']);
+run('git', ['commit', '-m', `chore(release): ${tag}`]);
+run('git', ['tag', tag]);
+ok(`committed and tagged ${tag}`);
 
 say('Push');
 runLive('git', ['push', 'origin', 'main']);
