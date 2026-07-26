@@ -8,7 +8,7 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
-## [0.2.1], Unreleased
+## [0.2.1], 2026-07-26
 
 Documentation, plus a release-tooling fix. 0.2.0 reached the registry before
 the documentation pass finished, and published versions cannot be replaced, so
