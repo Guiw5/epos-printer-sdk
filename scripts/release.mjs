@@ -43,12 +43,20 @@ function die(msg, hint) {
   process.exit(1);
 }
 
+/**
+ * Windows needs a shell to resolve npm/pnpm, which are .cmd shims. Git is a
+ * real executable, and must NOT go through a shell: the shell re-splits the
+ * arguments, so a commit message like `chore(release): v0.2.1` loses
+ * everything after the space and git reads the rest as a pathspec.
+ */
+const needsShell = (cmd) => process.platform === 'win32' && /^(npm|pnpm|npx)$/.test(cmd);
+
 /** Runs a command, returning trimmed stdout. Throws on non-zero exit. */
 function run(cmd, cmdArgs, opts = {}) {
   return execFileSync(cmd, cmdArgs, {
     cwd: ROOT,
     encoding: 'utf8',
-    shell: process.platform === 'win32',
+    shell: needsShell(cmd),
     ...opts,
   })?.trim();
 }
@@ -58,7 +66,7 @@ function runLive(cmd, cmdArgs) {
   execFileSync(cmd, cmdArgs, {
     cwd: ROOT,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell: needsShell(cmd),
   });
 }
 
@@ -228,16 +236,29 @@ try {
 // Past the point of no return: the package is public, so the commit and tag
 // have to land even if something here needs a retry.
 
-say('Record the release');
-run('git', ['add', 'package.json', 'CHANGELOG.md']);
-run('git', ['commit', '-m', `chore(release): ${tag}`]);
-run('git', ['tag', tag]);
-ok(`committed and tagged ${tag}`);
+try {
+  say('Record the release');
+  run('git', ['add', 'package.json', 'CHANGELOG.md']);
+  run('git', ['commit', '-m', `chore(release): ${tag}`]);
+  run('git', ['tag', tag]);
+  ok(`committed and tagged ${tag}`);
 
-say('Push');
-runLive('git', ['push', 'origin', 'main']);
-runLive('git', ['push', 'origin', tag]);
-ok(`pushed main and ${tag}`);
+  say('Push');
+  runLive('git', ['push', 'origin', 'main']);
+  runLive('git', ['push', 'origin', tag]);
+  ok(`pushed main and ${tag}`);
+} catch (err) {
+  // The package is already public, so this cannot be rolled back. Say exactly
+  // what is left to do rather than leaving the repo half-released.
+  console.error(`\n${c.red('✗')} ${readPkg().name}@${version} is published, but recording it failed.`);
+  console.error(`  ${c.dim(String(err.message).split('\n')[0])}\n`);
+  console.error('  Finish it by hand:\n');
+  console.error(c.dim(`    git add package.json CHANGELOG.md`));
+  console.error(c.dim(`    git commit -m "chore(release): ${tag}"`));
+  console.error(c.dim(`    git tag ${tag}`));
+  console.error(c.dim(`    git push origin main && git push origin ${tag}\n`));
+  process.exit(1);
+}
 
 console.log(`\n${c.green('✓')} ${readPkg().name}@${readPkg().version} released.`);
 console.log(c.dim(`  https://www.npmjs.com/package/${readPkg().name}`));
