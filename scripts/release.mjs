@@ -108,6 +108,40 @@ try {
   die('Not logged in to npm.', 'Run: npm login');
 }
 
+// A version already on the registry can never be replaced: npm rejects it with
+// a 403 that reads like a permissions problem. Catch it here, before the test
+// suite runs and long before anything is pushed.
+const targetVersion = bump ? null : pkg.version;
+if (targetVersion) {
+  let published = null;
+  try {
+    published = run('npm', ['view', `${pkg.name}@${targetVersion}`, 'version']);
+  } catch {
+    // Not published (404). That is the expected path.
+  }
+  if (published) {
+    die(
+      `${pkg.name}@${targetVersion} is already on the registry.`,
+      'Published versions are immutable. Run `pnpm release patch` (or minor/major) to cut a new one.'
+    );
+  }
+  ok(`${targetVersion} is not on the registry yet`);
+}
+
+// Same idea for the tag: releasing over an existing one silently moves it, or
+// fails at push time after the package is already public.
+const plannedTag = `v${bump ? '<bumped>' : pkg.version}`;
+if (!bump) {
+  const localTag = run('git', ['tag', '--list', plannedTag]);
+  const remoteTag = run('git', ['ls-remote', '--tags', 'origin', plannedTag]);
+  if (localTag || remoteTag) {
+    die(
+      `Tag ${plannedTag} already exists ${localTag && remoteTag ? 'locally and on origin' : localTag ? 'locally' : 'on origin'}.`,
+      'That version was already released. Bump instead, or delete the tag if it was created by mistake.'
+    );
+  }
+}
+
 // ── 2. Verify ───────────────────────────────────────────────────────────
 // Build runs first inside `verify` because linting the example resolves the
 // package through its exports map, which needs dist/ to exist.
