@@ -8,11 +8,14 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
-## [0.2.2], 2026-08-15
+## [0.3.0], Unreleased
 
-Builder API parity: the pieces of the vendor surface that were reachable in
-principle but not in practice, plus the validation gaps that let a malformed
-job go out looking healthy.
+Builder API parity and a packaging pass: the pieces of the vendor surface that
+were reachable in principle but not in practice, the validation gaps that let a
+malformed job go out looking healthy, and a build that Create React App 4 can
+actually consume.
+
+Supersedes 0.2.2, which was tagged in the changelog but never published.
 
 ### Added
 
@@ -69,6 +72,14 @@ job go out looking healthy.
 
 ### Changed
 
+- **BREAKING** `Printer` and `DeviceTerminal` are now type-only exports from
+  the package root, matching `CAT` and `CashChanger`. They are handed back by
+  `ePOSDevice.createDevice()` and were never meant to be constructed directly.
+  Exporting them as values forced the root entry to import them statically,
+  which defeated the `import.meta.glob` loader in `commons/utils.ts`: both
+  classes shipped in the startup chunk even for consumers that never opened a
+  device. Callers that imported either one as a value must go through
+  `createDevice()`; the types are still exported under the same names.
 - **The package now ships CommonJS as well as ESM, and resolves under
   webpack 4.** That toolchain (Create React App 4) could not consume this
   package at all: `"type": "module"` with an ESM-only build, an `exports` map
@@ -89,21 +100,31 @@ job go out looking healthy.
   its own chunk: the root entry re-exports `ePosCrypto`, which makes the
   automatic splitter refuse to move it and quietly collapses the lazy import
   back into an eager one.
-- Sizes moved. Measured on a production-style bundle (rollup for tree-shaking
-  and code splitting, esbuild to minify, gzipped), eager cost:
+- **`socket.io-client` resolves to its browser build.** Its `main` points at
+  the Node entry and the package declares no `browser` field, so bundlers
+  followed it into `xmlhttprequest` and stubbed `fs`, `http`, `https`, `url`
+  and `child_process` — code that cannot run in a browser, carried by every
+  consumer of the socket transport. The build now aliases it to
+  `dist/socket.io.js`, the browser bundle that ships in the same package. The
+  socket chunk drops from 30.72 to 15.66 kB gzipped and five build warnings go
+  with it.
+- Sizes moved. Reproduce with `pnpm size`, which bundles a one-line entry per
+  scenario the way an app would (rollup to shake and split, esbuild to minify)
+  and gzips the result. *Eager* is the entry plus everything it reaches through
+  static imports, which is what loads before any code runs:
 
-  | import | 0.2.1 | 0.2.2 |
-  | --- | --- | --- |
-  | `EposHttpPrinter` from `epos-printer-sdk/http` | 5.59 kB | 6.65 kB |
-  | `ePOSDevice` from `epos-printer-sdk` | 24.63 kB | **15.16 kB** |
-  | `ePosCrypto` from `epos-printer-sdk` | 10.53 kB | 10.75 kB |
+  | import | 0.2.1 eager | 0.3.0 eager | 0.3.0 on demand |
+  | --- | --- | --- | --- |
+  | `EposHttpPrinter` from `epos-printer-sdk/http` | 6.93 kB | 8.00 kB | — |
+  | `ePOSDevice` from `epos-printer-sdk` | 29.58 kB | **17.31 kB** | 32.31 kB in 6 chunks |
+  | `ePosCrypto` from `epos-printer-sdk` | 11.78 kB | 11.95 kB | — |
 
   The printing path pays ~1 kB for the new validation and the `es2019`
-  downlevel; the device path drops 9.5 kB, the crypto having moved to a chunk
-  that only loads when a socket connection is opened. Importing the new
-  constants costs an importer a few bytes and everyone else nothing. The
-  unbundled files in `dist` grew (the http entry from ~21 kB to ~34 kB),
-  because every constant is present there for a bundler to shake out.
+  downlevel. The device path drops 12.27 kB up front: the crypto stack, the
+  socket transport and each device class now load only when the code path that
+  needs them runs. The unbundled files in `dist` grew (the http entry from
+  ~21 kB to ~34 kB), because every constant is present there for a bundler to
+  shake out.
 
 ## [0.2.1], 2026-07-26
 

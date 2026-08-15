@@ -5,8 +5,6 @@ import { ePOSDevice } from "./components/ePOSDevice";
 import { ePosCrypto } from "./components/ePosCrypto";
 import { CanvasPrint } from "./components/CanvasPrint";
 import { EposHttpPrinter } from "./components/EposHttpPrinter";
-import { Printer } from "./devices/Printer";
-import { DeviceTerminal } from "./devices/DeviceTerminal";
 
 export {
   // Recommended: lightweight, socket-free HTTP printing (see README).
@@ -18,10 +16,14 @@ export {
   ePOSDevice,
   CanvasPrint,
   ePosDeviceMessage,
-  ePosCrypto,
-  Printer,
-  DeviceTerminal
+  ePosCrypto
 };
+// Sólo el tipo, igual que CAT y CashChanger: los entrega `createDevice()`, no se
+// instancian a mano. Exportarlos como valor obligaba al barril a importarlos
+// estáticos y anulaba la carga diferida del `import.meta.glob` de
+// `commons/utils.ts` — entraban en el chunk de arranque aunque nadie los usara.
+export type { Printer } from "./devices/Printer";
+export type { DeviceTerminal } from "./devices/DeviceTerminal";
 export type { EposHttpPrinterOptions } from "./components/EposHttpPrinter";
 export type { PrintServiceResponse } from "./builders/httpTransport";
 export type { IDevice, DeviceType } from "./types";

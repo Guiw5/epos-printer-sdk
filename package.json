@@ -1,6 +1,6 @@
 {
   "name": "epos-printer-sdk",
-  "version": "0.2.2",
+  "version": "0.2.1",
   "description": "Modern TypeScript library port of Epson's ePOS SDK, transcription from vendor's IIFE bundle. Ships EposHttpPrinter, a lightweight, socket-free, fully async/await client for the ePOS-Print HTTP web service (built for the TM-T88V), plus the full callback-based SDK surface (device management, WebSocket transport) for advanced use.",
   "keywords": [
     "epson",
@@ -80,6 +80,7 @@
     "test:ui": "vitest --ui",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "size": "node scripts/measure-size.mjs",
     "docs": "typedoc --entryPoints src/index.ts --out docs",
     "dev:react": "pnpm --filter epos-printer-react-example dev",
     "build:react": "pnpm build && pnpm --filter epos-printer-react-example build",
