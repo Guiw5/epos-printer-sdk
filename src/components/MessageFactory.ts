@@ -1,11 +1,27 @@
 import { ePosDeviceMessage, Data, MsgData } from './ePosDeviceMessage';
-import { ePosCrypto } from './ePosCrypto';
-import { bigInt2str } from '../crypto/bigint';
+import type { ePosCrypto } from './ePosCrypto';
 import { REQUEST } from '../constants/eposmessage';
 
 let sequence: number = 0;
 const PUBKEY_TEST_TEXT = 'hello';
-const cipher = new ePosCrypto();
+
+// Diffie-Hellman + Blowfish + MD5 + bigint is the heaviest thing in the
+// package and only the ePOS-Device socket transport ever reaches it, so it is
+// loaded on demand, the same way socket.io-client is. loadCrypto() is awaited
+// by connectBySocketIo() before any socket handler is registered, which is why
+// every consumer of the cipher below can stay synchronous.
+let loaded: ePosCrypto | null = null;
+let loading: Promise<ePosCrypto> | null = null;
+
+function requireCipher(): ePosCrypto {
+  if (!loaded) {
+    throw new Error(
+      'The ePOS-Device crypto module is not loaded yet. It loads automatically when the socket ' +
+      'transport connects, await MessageFactory.loadCrypto() first if you drive the message layer directly.'
+    );
+  }
+  return loaded;
+}
 
 const getNextSequence = (): number => {
   sequence++;
@@ -16,6 +32,15 @@ const getNextSequence = (): number => {
 };
 
 export const MessageFactory = {
+  /** Loads the crypto stack. Idempotent, and safe to call concurrently. */
+  async loadCrypto(): Promise<void> {
+    if (loaded) return;
+    if (!loading) {
+      loading = import('./ePosCrypto').then(({ ePosCrypto }) => new ePosCrypto());
+    }
+    loaded = await loading;
+  },
+
   parseRequestMessage(message: any[]): ePosDeviceMessage | null {
     const eposmsg = new ePosDeviceMessage();
     eposmsg.request = message[0];
@@ -74,17 +99,12 @@ export const MessageFactory = {
     const eposmsg = new ePosDeviceMessage();
     eposmsg.request = REQUEST.PUBKEY;
 
+    const cipher = requireCipher();
     cipher.genClientKeys(prime, key);
-    const testData = cipher.bfEncrypt(PUBKEY_TEST_TEXT);
-    let pubkey = bigInt2str(cipher.getPubkey(), 16);
-
-    while (pubkey.length < 192) {
-      pubkey = '0' + pubkey;
-    }
 
     eposmsg.data = {
-      key: pubkey,
-      testData,
+      key: cipher.getPubkeyHex(),
+      testData: cipher.bfEncrypt(PUBKEY_TEST_TEXT),
     } as MsgData;
     return eposmsg;
   },
@@ -148,7 +168,7 @@ export const MessageFactory = {
     eposmsg.request = REQUEST.DEVICEDATA;
     eposmsg.sequence = getNextSequence();
     eposmsg.deviceId = deviceId;
-    eposmsg.data = crypto ? cipher.bfEncrypt(JSON.stringify(data)) : data;
+    eposmsg.data = crypto ? requireCipher().bfEncrypt(JSON.stringify(data)) : data;
     return eposmsg;
   },
 
@@ -158,7 +178,7 @@ export const MessageFactory = {
     eposmsg.sequence = getNextSequence();
     eposmsg.serviceId = serviceId;
     eposmsg.isCrypto = crypto;
-    eposmsg.data = crypto ? cipher.bfEncrypt(JSON.stringify(data)) : data;
+    eposmsg.data = crypto ? requireCipher().bfEncrypt(JSON.stringify(data)) : data;
     return eposmsg;
   },
 
@@ -187,7 +207,7 @@ export const MessageFactory = {
   },
 
   decrypt(data: string): MsgData {
-    const decryptedData = cipher.bfDecrypt(data);
+    const decryptedData = requireCipher().bfDecrypt(data);
     return JSON.parse(decryptedData) as MsgData;
   },
 };

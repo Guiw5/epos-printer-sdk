@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ePOSBuilder } from '../ePOSBuilder';
+import { CUT_NO_FEED, FULL_CUT_FEED, HALFTONE_THRESHOLD } from '../../constants/eposbuilder';
 
 // Strips the <epos-print> wrapper so assertions focus on the element(s)
 // actually produced by each builder call.
@@ -117,6 +118,26 @@ describe('ePOSBuilder', () => {
       expect(withBrightness(0)).toThrow(); // brightness must be >= 0.1
       expect(withBrightness(1)).not.toThrow();
     });
+
+    it('halftone/brightness are public and validated in addImage, not on assignment (vendor timing)', () => {
+      const fakeCtx = {
+        getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 0]), width: 1, height: 1 }),
+      } as unknown as CanvasRenderingContext2D;
+
+      // No cast: the fields are part of the public surface now.
+      const builder = new ePOSBuilder();
+      expect(() => { builder.halftone = 99; }).not.toThrow();
+      expect(() => { builder.brightness = 99; }).not.toThrow();
+      expect(builder.halftone).toBe(99);
+
+      expect(() => builder.addImage(fakeCtx, 0, 0, 1, 1)).toThrow(/halftone/);
+
+      builder.halftone = HALFTONE_THRESHOLD;
+      expect(() => builder.addImage(fakeCtx, 0, 0, 1, 1)).toThrow(/brightness/);
+
+      builder.brightness = 1;
+      expect(() => builder.addImage(fakeCtx, 0, 0, 1, 1)).not.toThrow();
+    });
   });
 
   describe('page mode', () => {
@@ -142,9 +163,84 @@ describe('ePOSBuilder', () => {
       expect(body(new ePOSBuilder().addCut())).toBe('<cut/>');
     });
 
+    it('addCut accepts every CutType, including the fullcut variants', () => {
+      const types: Parameters<ePOSBuilder['addCut']>[0][] = [
+        'no_feed', 'feed', 'reserve', 'no_feed_fullcut', 'feed_fullcut', 'reserve_fullcut',
+      ];
+      for (const type of types) {
+        expect(() => new ePOSBuilder().addCut(type)).not.toThrow();
+      }
+      expect(body(new ePOSBuilder().addCut(CUT_NO_FEED as 'no_feed'))).toBe('<cut type="no_feed"/>');
+      expect(body(new ePOSBuilder().addCut(FULL_CUT_FEED as 'feed_fullcut'))).toBe('<cut type="feed_fullcut"/>');
+    });
+
+    it('addCut rejects a value outside the enum instead of emitting it (regression: <cut type="banana"/> used to go out on the wire)', () => {
+      const addCut = (type: string) => () => new ePOSBuilder().addCut(type as Parameters<ePOSBuilder['addCut']>[0]);
+
+      expect(addCut('banana')).toThrow(/type/);
+      // The dangerous typo: no_feed is what a label/ticket layout needs, and a
+      // bare <cut/> silently means type="feed" per the vendor manual.
+      expect(addCut('no-feed')).toThrow(/type/);
+      expect(addCut('')).toThrow(/type/);
+    });
+
+    it('the other enum attributes are validated too (same hole as addCut)', () => {
+      type Loose = Record<string, (...args: never[]) => unknown>;
+      const call = (method: string, ...args: unknown[]) => () =>
+        (new ePOSBuilder() as unknown as Loose)[method](...(args as never[]));
+
+      expect(call('addTextAlign', 'middle')).toThrow(/align/);
+      expect(call('addTextFont', 'font_z')).toThrow(/font/);
+      expect(call('addFeedPosition', 'nowhere')).toThrow(/pos/);
+      expect(call('addBarcode', '123', 'code40')).toThrow(/type/);
+      expect(call('addSymbol', '123', 'qrcode_model_9')).toThrow(/type/);
+      expect(call('addHLine', 0, 10, 'chunky')).toThrow(/style/);
+      expect(call('addPageDirection', 'diagonal')).toThrow(/dir/);
+      expect(call('addPulse', 'drawer_3', 'pulse_100')).toThrow(/drawer/);
+      expect(call('addSound', 'pattern_z')).toThrow(/pattern/);
+      expect(call('addLayout', 'papyrus')).toThrow(/type/);
+    });
+
     it('addRecovery / addReset', () => {
       expect(body(new ePOSBuilder().addRecovery())).toBe('<recovery/>');
       expect(body(new ePOSBuilder().addReset())).toBe('<reset/>');
+    });
+  });
+
+  describe('getBody / setBody', () => {
+    it('getBody returns the body, toString returns the document', () => {
+      b.addText('hola').addCut('feed');
+
+      expect(b.getBody()).toBe('<text>hola</text><cut type="feed"/>');
+      expect(b.toString()).toBe(
+        '<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print">' +
+        '<text>hola</text><cut type="feed"/></epos-print>'
+      );
+    });
+
+    it('a captured body replayed into another instance reproduces the same document', () => {
+      const captured = b.addText('ticket').addCut('feed').getBody();
+
+      const replay = new ePOSBuilder().setBody(captured);
+
+      expect(replay.toString()).toBe(b.toString());
+    });
+
+    it('setBody rejects a whole document (regression: setXmlString(toString()) produced nested <epos-print>)', () => {
+      b.addText('hola');
+
+      expect(() => new ePOSBuilder().setBody(b.toString())).toThrow(/document/);
+      expect(() => new ePOSBuilder().setBody('  <epos-print xmlns="x"></epos-print>')).toThrow(/document/);
+      // A body that merely mentions the word is fine.
+      expect(() => new ePOSBuilder().setBody('<text>epos-print</text>')).not.toThrow();
+    });
+
+    it('setBody replaces rather than appends, and setBody("") clears', () => {
+      b.addText('descartado').setBody('<text>nuevo</text>');
+      expect(b.getBody()).toBe('<text>nuevo</text>');
+
+      b.setBody('');
+      expect(b.toString()).toBe('<epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print>');
     });
   });
 

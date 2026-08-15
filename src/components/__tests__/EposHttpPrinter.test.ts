@@ -133,4 +133,53 @@ describe('EposHttpPrinter', () => {
 
     await expect(printer.addText('hola\n').send()).rejects.toThrow();
   });
+
+  it('recover() forces one job only, later jobs go out unforced (regression: force="true" stuck on every job after a recover over HTTP)', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ success: 'true' })));
+    const printer = new EposHttpPrinter('printer.example.com');
+
+    await printer.recover();
+    await printer.addText('siguiente ticket\n').send();
+
+    const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => String((init as RequestInit).body));
+    expect(bodies[0]).toContain('<recovery/>');
+    expect(bodies[0]).toContain('force="true"');
+    expect(bodies[1]).toContain('siguiente ticket');
+    expect(bodies[1]).not.toContain('force=');
+    expect(printer.force).toBe(false);
+  });
+
+  it('force set by hand also applies to a single job', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ success: 'true' })));
+    const printer = new EposHttpPrinter('printer.example.com');
+
+    printer.force = true;
+    await printer.addText('uno\n').send();
+    await printer.addText('dos\n').send();
+
+    const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => String((init as RequestInit).body));
+    expect(bodies[0]).toContain('force="true"');
+    expect(bodies[1]).not.toContain('force=');
+  });
+
+  it('send() rejects a print body passed where a printjobid is expected (regression: it went out as a status query and resolved success: true, printing nothing)', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ success: 'true' })));
+    const printer = new EposHttpPrinter('printer.example.com');
+
+    await expect(printer.send('<text>hola</text>')).rejects.toThrow(/printjobid/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('send() rejects a printjobid that is not one, and accepts the ids the spec allows', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ success: 'true' })));
+    const printer = new EposHttpPrinter('printer.example.com');
+
+    await expect(printer.send('job 7')).rejects.toThrow(/printjobid/);        // whitespace
+    await expect(printer.send('a'.repeat(31))).rejects.toThrow(/printjobid/); // over 30 chars
+    await expect(printer.send('job"/><evil')).rejects.toThrow(/printjobid/);  // markup into the SOAP header
+    expect(fetch).not.toHaveBeenCalled();
+
+    await expect(printer.getPrintJobStatus('job_7-A')).resolves.toBeDefined();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,4 +1,4 @@
-import { str2bigInt, randBigInt, powMod } from '../crypto/bigint';
+import { str2bigInt, randBigInt, powMod, bigInt2str as bigIntToString } from '../crypto/bigint';
 import { MD5 } from '../crypto/md5';
 import blowfish, { EncryptParams, DecryptParams } from '../crypto/blowfish';
 import { encode, decode } from '../crypto/base64';
@@ -100,5 +100,13 @@ export class ePosCrypto {
    */
   public getPubkey(): BigInteger {
     return this.pubkey_c;
-  }  
+  }
+
+  /**
+   * The public key as the zero-padded 192-character hex string the PUBKEY
+   * message carries on the wire.
+   */
+  public getPubkeyHex(): string {
+    return bigIntToString(this.pubkey_c, 16).padStart(192, '0');
+  }
 }

@@ -112,4 +112,34 @@ describe('createSimulator', () => {
     expect(sim.jobs).toHaveLength(0);
     expect(sim.state.paper).toBe(3);
   });
+
+  it('a body captured with getBody() reprints identically, on another instance, without rasterizing the image again', async () => {
+    const { sim, printer } = makePrinter();
+
+    let rasterizations = 0;
+    const context = {
+      getImageData: () => {
+        rasterizations++;
+        return { data: new Uint8ClampedArray(8 * 8 * 4).fill(255), width: 8, height: 8 };
+      },
+    } as unknown as CanvasRenderingContext2D;
+
+    const captured = printer
+      .addTextAlign('center')
+      .addImage(context, 0, 0, 8, 8, 'color_1', 'mono')
+      .addCut('feed')
+      .getBody();
+
+    await printer.send();
+    expect(rasterizations).toBe(1);
+    expect(sim.jobs[0].xml).toContain('<image ');
+
+    // Portable across instances: the receipt is already serialized.
+    const reprint = new EposHttpPrinter('demo', { fetch: sim.fetch });
+    await reprint.setBody(captured).send();
+
+    expect(rasterizations).toBe(1);
+    expect(sim.jobs).toHaveLength(2);
+    expect(sim.jobs[1].xml).toBe(sim.jobs[0].xml);
+  });
 });

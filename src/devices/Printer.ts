@@ -4,6 +4,7 @@ import { MessageFactory } from "../components/MessageFactory";
 import type { ePOSDevice } from "../components/ePOSDevice";
 import { Data } from "../components/ePosDeviceMessage";
 import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type PrintServiceResponse } from "../builders/httpTransport";
+import { validatePrintJobId } from "../builders/utils";
 export class Printer extends CanvasPrint {
   deviceID: string;
   isCrypto: boolean;
@@ -21,12 +22,14 @@ export class Printer extends CanvasPrint {
     this.message = '';
   }
 
+  /** Vendor-named alias of {@link ePOSBuilder.setBody}. */
   setXmlString(xml: string): void {
-    this.message = xml;
+    this.setBody(xml);
   }
 
+  /** Vendor-named alias of {@link ePOSBuilder.getBody}. */
   getXmlString(): string {
-    return this.message;
+    return this.getBody();
   }
 
   getPrintJobStatus(printjobid: string): Promise<PrintServiceResponse> {
@@ -56,6 +59,8 @@ export class Printer extends CanvasPrint {
         break;
     }
 
+    validatePrintJobId(printjobid);
+
     if (!this.ePosDev.getEposprint() && this.connection?.isUsableDeviceIF()) {
       // The socket transport is fire-and-forget here: the real result
       // arrives later via client_send/client_onreceive on the device-data
@@ -77,6 +82,7 @@ export class Printer extends CanvasPrint {
     // handing the request off, on the HTTP path too (bundle line ~3529),
     // otherwise consecutive prints resend the previous content.
     this.setXmlString('');
+    this.force = false;
     try {
       const res = await postPrintRequest(address, soap, this.timeout, undefined, this.fetchImpl);
       this.fireReceiveEvent(res.success, res.code, res.status, res.battery, res.printjobid, 0);

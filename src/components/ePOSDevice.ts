@@ -22,6 +22,7 @@ import {
   CONNECT_TIMEOUT,
   TYPES,
   IFPORT_EPOSDEVICE,
+  IFPORT_EPOSDEVICE_S,
   RESULT_OK,
   ERRORS as DEVICE_ERRORS,
   ERRORS,
@@ -48,6 +49,40 @@ interface ConnectionOptions {
 }
 
 export class ePOSDevice {
+  /**
+   * Instance constants, vendor parity: the canonical call is
+   * `device.createDevice(id, device.DEVICE_TYPE_PRINTER, ...)`, so they have
+   * to be readable off the instance. Same values as the module-level
+   * `constants/devices` and `constants/connection` exports.
+   */
+  readonly DEVICE_TYPE_SCANNER: DeviceType = TYPES.TYPE_SCANNER;
+  readonly DEVICE_TYPE_KEYBOARD: DeviceType = TYPES.TYPE_KEYBOARD;
+  readonly DEVICE_TYPE_POSKEYBOARD: DeviceType = TYPES.TYPE_POSKEYBOARD;
+  readonly DEVICE_TYPE_MSR: DeviceType = TYPES.TYPE_MSR;
+  readonly DEVICE_TYPE_CAT: DeviceType = TYPES.TYPE_CAT;
+  readonly DEVICE_TYPE_CASH_CHANGER: DeviceType = TYPES.TYPE_CASH_CHANGER;
+  readonly DEVICE_TYPE_PRINTER: DeviceType = TYPES.TYPE_PRINTER;
+  readonly DEVICE_TYPE_DISPLAY: DeviceType = TYPES.TYPE_DISPLAY;
+  readonly DEVICE_TYPE_SIMPLE_SERIAL: DeviceType = TYPES.TYPE_SIMPLE_SERIAL;
+  readonly DEVICE_TYPE_HYBRID_PRINTER: DeviceType = TYPES.TYPE_HYBRID_PRINTER;
+  readonly DEVICE_TYPE_HYBRID_PRINTER2: DeviceType = TYPES.TYPE_HYBRID_PRINTER2;
+  readonly DEVICE_TYPE_DT: DeviceType = TYPES.TYPE_DT;
+  readonly DEVICE_TYPE_OTHER_PERIPHERAL: DeviceType = TYPES.TYPE_OTHER_PERIPHERAL;
+  readonly DEVICE_TYPE_GFE: DeviceType = TYPES.TYPE_GFE;
+  readonly RESULT_OK = RESULT_OK;
+  readonly ERROR_SYSTEM = CONNECTION_ERRORS.ERROR_SYSTEM;
+  readonly ERROR_PARAMETER = CONNECTION_ERRORS.ERROR_PARAMETER;
+  readonly ERROR_DEVICE_IN_USE = DEVICE_ERRORS.ERROR_DEVICE_IN_USE;
+  readonly ERROR_DEVICE_OPEN = DEVICE_ERRORS.ERROR_DEVICE_OPEN;
+  readonly ERROR_DEVICE_CLOSE = DEVICE_ERRORS.ERROR_DEVICE_CLOSE;
+  readonly ERROR_DEVICE_NOT_OPEN = DEVICE_ERRORS.ERROR_DEVICE_NOT_OPEN;
+  readonly ERROR_DEVICE_NOT_FOUND = DEVICE_ERRORS.ERROR_DEVICE_NOT_FOUND;
+  readonly IFPORT_EPOSDEVICE = IFPORT_EPOSDEVICE;
+  readonly IFPORT_EPOSDEVICE_S = IFPORT_EPOSDEVICE_S;
+  readonly CONNECT_TIMEOUT = CONNECT_TIMEOUT;
+  readonly RECONNECT_TIMEOUT = RECONNECT_TIMEOUT;
+  readonly MAX_RECONNECT_RETRY = MAX_RECONNECT_RETRY;
+
   // Private members
   private socket: LegacySocket | null = null;
   private connectionId: string | null = null;
@@ -310,6 +345,12 @@ export class ePOSDevice {
         "Install it, or use the HTTP transport (EposHttpPrinter / { eposprint: true }), which most printers support."
       );
     }
+    // Before any handler is registered: the server's CONNECT message
+    // triggers getPubkeyMessage() synchronously, so the cipher has to be in
+    // place by the time the socket is live. Lazy for the same reason
+    // socket.io-client is, no HTTP consumer ever reaches this line.
+    await MessageFactory.loadCrypto();
+
     const url = this.conection.getSocketIoURL();
     this.socket = io.connect(url, {
       reconnect: false,

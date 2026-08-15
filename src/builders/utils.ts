@@ -27,6 +27,27 @@ export function validateRange(name: string, value: number, min: number, max: num
   }
  }
 
+export function validateEnum(name: string, value: string, allowed: RegExp): void {
+  if (!allowed.test(value)) {
+    throw new Error(`Parameter "${name}" is invalid`);
+  }
+}
+
+/**
+ * The ePOS-Print manual specifies up to 30 alphanumeric characters; `-` and
+ * `_` are allowed here too, they are common in job ids and harmless. Anything
+ * else is rejected: the value is interpolated raw into the SOAP header, and a
+ * loose rule is what lets a whole print body be mistaken for a job id.
+ * An empty/absent id means "no job tracking" and is valid.
+ */
+const printJobId = /^[0-9A-Za-z_-]{1,30}$/;
+
+export function validatePrintJobId(value: string | undefined): void {
+  if (value && !printJobId.test(value)) {
+    throw new Error(`Parameter "printjobid" is invalid: expected up to 30 characters ([0-9A-Za-z_-]), got ${JSON.stringify(value.slice(0, 40))}`);
+  }
+}
+
 export function toHexBinary(s: string): string {
   return Array.from(s)
     .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))

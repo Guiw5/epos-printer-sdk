@@ -1,0 +1,6 @@
+{
+  "main": "../dist/simulator.cjs",
+  "module": "../dist/simulator.js",
+  "types": "../dist/simulator.d.ts",
+  "sideEffects": false
+}
