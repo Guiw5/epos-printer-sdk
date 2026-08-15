@@ -8,7 +8,7 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
-## [0.3.0], Unreleased
+## [0.3.0], 2026-08-15
 
 Builder API parity and a packaging pass: the pieces of the vendor surface that
 were reachable in principle but not in practice, the validation gaps that let a
