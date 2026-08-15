@@ -1,9 +1,10 @@
 # epos-printer-sdk
 
 > TypeScript library for printing to Epson TM receipt printers (TM-T88V and
-> compatible) over the ePOS-Print HTTP protocol. Zero dependencies, ~7 KB
-> gzipped, Promise-based, works in browsers and in Node 18+. A ground-up
-> reimplementation of Epson's ePOS SDK, not a wrapper around it.
+> compatible) over the ePOS-Print HTTP protocol. Zero dependencies, ~6.7 KB
+> gzipped in a bundled app, Promise-based, works in browsers and in Node 18+.
+> Ships ESM and CommonJS. A ground-up reimplementation of Epson's ePOS SDK,
+> not a wrapper around it.
 
 Install with `pnpm add epos-printer-sdk`. Import `EposHttpPrinter` from
 `epos-printer-sdk/http` for printing (the recommended path), or from
@@ -34,6 +35,13 @@ Key facts an assistant should know before writing code with this library:
   TM-i, TM-DT and TM-T88VI+ models host that service. Use HTTP unless you know
   you have one of those, and note `socket.io-client` is an optional peer
   dependency that must be installed separately for socket support.
+- **Both ESM and CommonJS ship.** `import` resolves to `dist/*.js`, `require()`
+  to `dist/*.cjs`, and `http/` and `simulator/` bridge folders keep the
+  subpaths resolvable for older bundlers that ignore `exports` (webpack 4 /
+  Create React App 4). Output targets `es2019`.
+- **`socket.io-client` and the crypto stack load on demand**, only when an
+  `ePOSDevice` socket connection is opened. Nothing on the printing path
+  touches either.
 
 ## Minimal example
 
@@ -75,6 +83,21 @@ if (!result.success) console.error(result.code);
   `epos-printer-sdk/simulator`) returns `{ fetch, state, jobs, reset() }`.
 - `decodePrinterStatus(status, battery)`, decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
 - Builder (chainable): `addText`, `addTextAlign`, `addTextSize`, `addTextStyle`, `addTextFont`, `addTextDouble`, `addTextLang`, `addTextLineSpace`, `addTextRotate`, `addTextSmooth`, `addTextPosition`, `addTextVPosition`, `addFeed`, `addFeedLine`, `addFeedUnit`, `addFeedPosition`, `addLayout`, `addHLine`, `addVLineBegin`, `addVLineEnd`, `addRotateBegin`, `addRotateEnd`, `addBarcode`, `addSymbol`, `addImage`, `addLogo`, `addPageBegin`, `addPageArea`, `addPageDirection`, `addPagePosition`, `addPageLine`, `addPageRectangle`, `addPageEnd`, `addCut`, `addPulse`, `addSound`, `addRecovery`, `addReset`, `addCommand`.
+- `printer.getBody()` / `printer.setBody(body)`, the accumulated children of
+  `<epos-print>`. `toString()` is the whole document, and `setBody()` throws if
+  handed one. Capturing a body and replaying it (on any instance) reprints the
+  same job without re-rasterizing an `<image>`. `Printer.getXmlString()`/
+  `setXmlString()` are vendor-named aliases of the pair.
+- `printer.halftone` / `printer.brightness` / `printer.force`, public fields.
+  The first two are validated inside `addImage()`, not on assignment. `force`
+  emits `force="true"` for one job: `send()` clears it, as `recover()` relies on.
+- Constants are exported: `epos-printer-sdk/http` re-exports the builder ones
+  (`FONT_A`, `ALIGN_CENTER`, `CUT_FEED`, `CUT_NO_FEED`, `HALFTONE_DITHER`, ...),
+  `epos-printer-sdk` those plus the device ones (`TYPES`, `NAMES`, `ERRORS`,
+  `RESULT_OK`, `IFPORT_EPOSDEVICE`, ...). `ePOSDevice` also carries them as
+  instance fields (`device.DEVICE_TYPE_PRINTER`), matching the vendor SDK.
+- Every enum-valued builder argument is validated and throws on an unknown
+  value; `printjobid` must be up to 30 characters of `[0-9A-Za-z_-]`.
 - Events (push-based state): `onstatuschange`, `onbatterystatuschange`, `ononline`, `onoffline`, `onpoweroff`, `oncoveropen`, `oncoverok`, `onpaperend`, `onpapernearend`, `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`, `onreceive`, `onerror`.
 - `ePOSDevice` (full entry only) is the session and device-management layer, not a transport: it runs over HTTP or the socket and decides which (`{ eposprint: true }` forces HTTP). Nothing extends it; the builder chain is separate. API: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
 

@@ -32,3 +32,8 @@ export type { PrinterStatus, PaperState } from "./builders/printerStatus";
 export type {
   BarcodeType, Hri, Font, SymbolType, Level, Direction, LineStyle, Alignment,
 } from "./types";
+// Named constants for every enum-valued builder attribute (FONT_A, ALIGN_CENTER,
+// CUT_FEED, HALFTONE_DITHER, ...) and for device management (TYPES, ERRORS,
+// RESULT_OK, IFPORT_EPOSDEVICE, ...). Tree-shakeable: importing none costs nothing.
+export * from "./constants/eposbuilder";
+export * from "./constants/devices";

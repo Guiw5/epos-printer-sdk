@@ -1,5 +1,6 @@
 import { SendParams } from '../types';
 import { ePOSBuilder } from './ePOSBuilder';
+import { validatePrintJobId } from './utils';
 import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type FetchLike, type PrintServiceResponse } from './httpTransport';
 
 type EventHandler = (event?: any, sq?: number) => void;
@@ -168,6 +169,12 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       default: throw new Error("Invalid number of arguments");
     }
 
+    // Whatever ended up classified as a printjobid has to actually look like
+    // one. Otherwise a body passed where a request was meant falls through
+    // the /^<epos/ test above, gets sent as a status query, prints nothing,
+    // and still resolves with success: true.
+    validatePrintJobId(printjobid);
+
     return { address, request, printjobid, isPrintRequest };
   }
 
@@ -211,6 +218,12 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   async send(...params: [string?, string?, string?]): Promise<PrintServiceResponse> {
     const { address, request, printjobid, isPrintRequest } = this.getSendParams(params);
     const isMonitoring = !isPrintRequest;
+    if (isPrintRequest) {
+      // send() takes ownership of the builder state: the body is already
+      // consumed by now, and force applies to the job it was set for, not
+      // to every job after it (vendor Printer.send() clears it the same way).
+      this.force = false;
+    }
     const soap = buildSoapEnvelope(request, printjobid);
 
     const controller = new AbortController();

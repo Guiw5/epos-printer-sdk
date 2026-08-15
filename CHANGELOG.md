@@ -8,6 +8,103 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
+## [0.2.2], 2026-08-15
+
+Builder API parity: the pieces of the vendor surface that were reachable in
+principle but not in practice, plus the validation gaps that let a malformed
+job go out looking healthy.
+
+### Added
+
+- **`getBody()` / `setBody()` on `ePOSBuilder`**: capture the accumulated body
+  (the children of `<epos-print>`, not the document, `toString()` is the
+  document) and replay it later, on the same instance or another one. A
+  captured receipt reprints byte for byte with the `<image>` already
+  serialized, so reprinting does not rasterize the canvas again.
+  `Printer.setXmlString()`/`getXmlString()` stay as vendor-named aliases and
+  now delegate to this pair.
+- **`halftone`, `brightness` and `force` are public** on `ePOSBuilder`. They
+  were `protected`, so the documented way to tune image rendering needed a
+  cast. No setters: the vendor validates halftone and brightness inside
+  `addImage()`, and so does this library, assignment stays unchecked on
+  purpose.
+- **The constants are exported from the package**: `epos-printer-sdk` now
+  re-exports every builder constant (`FONT_A`, `ALIGN_CENTER`, `CUT_FEED`,
+  `HALFTONE_DITHER`, ...) and the device-management ones (`TYPES`, `NAMES`,
+  `ERRORS`, `RESULT_OK`, `IFPORT_EPOSDEVICE`, ...); `epos-printer-sdk/http`
+  re-exports the builder ones. They existed but never left the package, so
+  callers had to retype the string literals.
+- **`ePOSDevice` instance constants** (`DEVICE_TYPE_PRINTER` and the other 13
+  device types, `RESULT_OK`, `ERROR_*`, `IFPORT_EPOSDEVICE`,
+  `IFPORT_EPOSDEVICE_S`, `CONNECT_TIMEOUT`, `RECONNECT_TIMEOUT`,
+  `MAX_RECONNECT_RETRY`). The canonical vendor call
+  `device.createDevice(id, device.DEVICE_TYPE_PRINTER, ...)` used to pass
+  `undefined` and fail.
+
+### Fixed
+
+- **`force` no longer sticks to every later job.** `CanvasPrint.recover()`
+  sets `force = true`, and only the socket branch of `Printer.send()` ever
+  cleared it, so after one `recover()` over HTTP every subsequent job went out
+  with `force="true"`. `send()` now consumes the flag along with the body, on
+  both transports: it applies to the job it was set for and nothing after.
+- **A print body passed where a `printjobid` belongs fails loudly.**
+  `send()` tells a job from a job-status query with `/^<epos/`, so a bare body
+  was classified as a `printjobid`, sent as a status query, printed nothing
+  and resolved `success: true`. The id is now validated (up to 30 characters,
+  `[0-9A-Za-z_-]`), which also stops markup being interpolated raw into the
+  SOAP header.
+- **Enum-valued builder attributes are validated**, matching the vendor's
+  `getEnumAttr`. `addCut('banana')` used to emit `<cut type="banana"/>`, and a
+  `<cut/>` the printer silently reads as `type="feed"` is not what a label
+  layout asking for `CUT_NO_FEED` wanted. Same fix applied to the other
+  attributes with the same hole: `addTextAlign`, `addTextFont`,
+  `addTextStyle`, `addFeedPosition`, `addImage`, `addBarcode`, `addSymbol`,
+  `addHLine`, `addVLineBegin`, `addVLineEnd`, `addPageDirection`,
+  `addPageLine`, `addPageRectangle`, `addPulse`, `addSound`, `addLayout`.
+  `addCut` additionally accepts the `*_fullcut` values this library's
+  `CutType` already declared and the vendor's own regex did not.
+- **`setBody()` rejects a whole document.** `setXmlString(printer.toString())`
+  produced nested `<epos-print>` elements, which is invalid XML.
+
+### Changed
+
+- **The package now ships CommonJS as well as ESM, and resolves under
+  webpack 4.** That toolchain (Create React App 4) could not consume this
+  package at all: `"type": "module"` with an ESM-only build, an `exports` map
+  with no `require` condition, and `esnext` output whose `?.`/`??` webpack 4's
+  parser rejects outright. Every entry now has a `.cjs` build beside the `.js`
+  one, `main` points at `./dist/index.cjs`, `exports` carries
+  `import`/`require`/`default`, the build targets `es2019`, and `http/` and
+  `simulator/` bridge folders (a `package.json` with `main`/`module`/`types`)
+  make the subpaths resolvable for bundlers that ignore `exports` entirely.
+  Nothing changes for ESM consumers, who keep resolving through `module` /
+  `exports.import`.
+- **The crypto stack is loaded on demand.** Diffie-Hellman + Blowfish + MD5 +
+  bigint is the heaviest thing in the package and only the ePOS-Device socket
+  transport reaches it, yet every `ePOSDevice` consumer was paying for it
+  eagerly. `MessageFactory` now imports it dynamically, awaited once by
+  `connectBySocketIo()` (already async, and before any socket handler is
+  registered), so everything above it stays synchronous. It is also pinned to
+  its own chunk: the root entry re-exports `ePosCrypto`, which makes the
+  automatic splitter refuse to move it and quietly collapses the lazy import
+  back into an eager one.
+- Sizes moved. Measured on a production-style bundle (rollup for tree-shaking
+  and code splitting, esbuild to minify, gzipped), eager cost:
+
+  | import | 0.2.1 | 0.2.2 |
+  | --- | --- | --- |
+  | `EposHttpPrinter` from `epos-printer-sdk/http` | 5.59 kB | 6.65 kB |
+  | `ePOSDevice` from `epos-printer-sdk` | 24.63 kB | **15.16 kB** |
+  | `ePosCrypto` from `epos-printer-sdk` | 10.53 kB | 10.75 kB |
+
+  The printing path pays ~1 kB for the new validation and the `es2019`
+  downlevel; the device path drops 9.5 kB, the crypto having moved to a chunk
+  that only loads when a socket connection is opened. Importing the new
+  constants costs an importer a few bytes and everyone else nothing. The
+  unbundled files in `dist` grew (the http entry from ~21 kB to ~34 kB),
+  because every constant is present there for a bundler to shake out.
+
 ## [0.2.1], 2026-07-26
 
 Documentation, plus a release-tooling fix. 0.2.0 reached the registry before
@@ -38,7 +135,8 @@ against real TM-T88V hardware.
   wiring: `connect()` and `send()` resolve with the printer's parsed
   response.
 - **`epos-printer-sdk/http` subpath export**: HTTP-only entry point that never
-  pulls in `socket.io-client` or the crypto stack (~21 kB vs ~74 kB).
+  pulls in `socket.io-client` or the crypto stack (~34 kB vs ~81 kB in
+  `dist` as of 0.2.2, 6.65 kB vs 15.16 kB gzipped once bundled).
 - **`decodePrinterStatus()`**: decodes the raw ASB bitmask into
   `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
 - **`epos-printer-sdk/simulator`**: a simulated printer you can hand to
