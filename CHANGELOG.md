@@ -8,7 +8,7 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
-## [0.4.0], Unreleased
+## [0.4.0], 2026-08-16
 
 Three things that only show up once the library is in production: a connection
 failure that couldn't say what went wrong, a monitoring loop that lived on the
