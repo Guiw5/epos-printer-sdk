@@ -128,3 +128,9 @@ export const UNSIGNED_BYTE_MAX = 255;
 export const UNSIGNED_SHORT_MAX = 65535;
 export const SIGNED_SHORT_MAX = 32767;
 export const SIGNED_SHORT_MIN = -32768;
+// CanvasPrint's vendor name for the same four layout values (`addLayout` reads
+// LAYOUT_*, `print(canvas)` reads PAPER_*).
+export const PAPER_RECEIPT = LAYOUT_RECEIPT;
+export const PAPER_RECEIPT_BM = LAYOUT_RECEIPT_BM;
+export const PAPER_LABEL = LAYOUT_LABEL;
+export const PAPER_LABEL_BM = LAYOUT_LABEL_BM;

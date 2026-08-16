@@ -1,5 +1,133 @@
 import { Connection } from "../components/Connection";
 import { MessageFactory } from "../components/MessageFactory";
+import type { DeviceRequest } from "../components/ePosDeviceMessage";
+
+/**
+ * A value carried by the CAT protocol. Neither the vendor bundle nor the
+ * ePOS-Device XML manual (the CAT messages are absent from it) says whether
+ * amounts and identifiers travel as text or as numbers, and there is no
+ * terminal here to check against, so both are accepted.
+ */
+export type CatValue = string | number;
+
+/**
+ * Every field below is optional on purpose: the names come from the vendor
+ * code, but which of them a given terminal fills in, and when, is only knowable
+ * against real hardware.
+ */
+export interface CatTransactionParams {
+  service?: CatValue;
+  totalAmount?: CatValue;
+  amount?: CatValue;
+  tax?: CatValue;
+  sequence?: CatValue;
+  additionalSecurityInformation?: CatValue;
+}
+
+export interface CatDailyLogParams {
+  service?: CatValue;
+  totalAmount?: CatValue;
+  sequence?: CatValue;
+  dailylogType?: CatValue;
+  additionalSecurityInformation?: CatValue;
+}
+
+export interface CatCommandParams {
+  service?: CatValue;
+  command?: CatValue;
+  data?: CatValue;
+  string?: CatValue;
+  additionalSecurityInformation?: CatValue;
+}
+
+export interface CatCheckConnectionParams {
+  additionalSecurityInformation?: CatValue;
+}
+
+export interface CatCashDepositParams {
+  service?: CatValue;
+  amount?: CatValue;
+  sequence?: CatValue;
+}
+
+/** Raw response payload, with the names the service sends. */
+export interface CatResponseData {
+  status?: number;
+  sequence?: CatValue;
+  service?: CatValue;
+  command?: CatValue;
+  data?: CatValue;
+  string?: CatValue;
+  account_number?: CatValue;
+  settled_amount?: CatValue;
+  slip_number?: CatValue;
+  kid?: CatValue;
+  approval_code?: CatValue;
+  transaction_number?: CatValue;
+  payment_condition?: CatValue;
+  void_slip_number?: CatValue;
+  balance?: CatValue;
+  transaction_type?: CatValue;
+  additional_security_information?: CatValue;
+  daily_log?: CatDailyLogEntryData[];
+}
+
+export interface CatDailyLogEntryData {
+  kid?: CatValue;
+  sales_count?: CatValue;
+  sales_amount?: CatValue;
+  void_count?: CatValue;
+  void_amount?: CatValue;
+}
+
+/** The same payload, with the names the callbacks receive. */
+export interface CatResult {
+  status?: number;
+  sequence?: CatValue;
+  service?: CatValue;
+  accountNumber?: CatValue;
+  settledAmount?: CatValue;
+  slipNumber?: CatValue;
+  kid?: CatValue;
+  approvalCode?: CatValue;
+  transactionNumber?: CatValue;
+  paymentCondition?: CatValue;
+  voidSlipNumber?: CatValue;
+  balance?: CatValue;
+  transactionType?: CatValue;
+  additionalSecurityInformation?: CatValue;
+}
+
+export interface CatDailyLogEntry {
+  kid?: CatValue;
+  salesCount?: CatValue;
+  salesAmount?: CatValue;
+  voidCount?: CatValue;
+  voidAmount?: CatValue;
+}
+
+export interface CatDailyLogResult {
+  status?: number;
+  service?: CatValue;
+  sequence?: CatValue;
+  dailyLog: CatDailyLogEntry[];
+}
+
+export interface CatCommandReply {
+  status?: number;
+  command?: CatValue;
+  data?: CatValue;
+  string?: CatValue;
+  service?: CatValue;
+  sequence?: CatValue;
+  accountNumber?: CatValue;
+  settledAmount?: CatValue;
+  slipNumber?: CatValue;
+  transactionNumber?: CatValue;
+  paymentCondition?: CatValue;
+  balance?: CatValue;
+  additionalSecurityInformation?: CatValue;
+}
 
 export class CAT {
   readonly SUE_LOGSTATUS_OK = 0;
@@ -24,7 +152,7 @@ export class CAT {
     this.connection = connection;
   }
 
-  send(data: any): number {
+  send(data: DeviceRequest): number {
     const eposmsg = MessageFactory.getDeviceDataMessage(this.deviceID, data, this.isCrypto);
     let sequence = -1;
 
@@ -37,7 +165,7 @@ export class CAT {
 
     return sequence;
   }
-  authorizeSales(data: any): number {
+  authorizeSales(data: CatTransactionParams): number {
     const _data = {
       service: data.service,
       total_amount: data.totalAmount,
@@ -52,7 +180,7 @@ export class CAT {
     return this.send(_data);
   }
 
-  authorizeVoid(data: any): number {
+  authorizeVoid(data: CatTransactionParams): number {
     const _data = {
       service: data.service,
       total_amount: data.totalAmount,
@@ -67,7 +195,7 @@ export class CAT {
     return this.send(_data);
   }
 
-  authorizeRefund(data: any): number {
+  authorizeRefund(data: CatTransactionParams): number {
     const _data = {
       service: data.service,
       total_amount: data.totalAmount,
@@ -82,7 +210,7 @@ export class CAT {
     return this.send(_data);
   }
 
-  authorizeCompletion(data: any): number {
+  authorizeCompletion(data: CatTransactionParams): number {
     const _data = {
       service: data.service,
       total_amount: data.totalAmount,
@@ -97,7 +225,7 @@ export class CAT {
     return this.send(_data);
   }
 
-  accessDailyLog(data: any): number {
+  accessDailyLog(data: CatDailyLogParams): number {
     const _data = {
       service: data.service,
       total_amount: data.totalAmount,
@@ -111,7 +239,7 @@ export class CAT {
     return this.send(_data);
   }
 
-  sendCommand(data: any): number {
+  sendCommand(data: CatCommandParams): number {
     const _data = {
       service: data.service,
       command: data.command,
@@ -124,7 +252,7 @@ export class CAT {
     return this.send(_data);
   }
 
-  checkConnection(data: any): number {
+  checkConnection(data: CatCheckConnectionParams): number {
     const _data = {
       type: "checkconnection",
       additional_security_information: data.additionalSecurityInformation,
@@ -142,12 +270,12 @@ export class CAT {
     return this.send({ type: "scancode", training: this.trainingMode, timeout: _timeout });
   }
 
-  scanData(data: any): number {
+  scanData(data: Record<string, unknown>): number {
     const _timeout = this.timeout === 0 ? 150000 : this.timeout;
     return this.send({ type: "scandata", training: this.trainingMode, timeout: _timeout, ...data });
   }
 
-  cashDeposit(data: any): number {
+  cashDeposit(data: CatCashDepositParams): number {
     return this.send({
       service: data.service,
       amount: data.amount,
@@ -158,59 +286,59 @@ export class CAT {
     });
   }
 
-  client_onauthorizesales(data: any): void {
+  client_onauthorizesales(data: CatResponseData): void {
     this.onauthorizesales?.(this.getResultObject(data));
   }
 
-  client_onauthorizevoid(data: any): void {
+  client_onauthorizevoid(data: CatResponseData): void {
     this.onauthorizevoid?.(this.getResultObject(data));
   }
 
-  client_onauthorizerefund(data: any): void {
+  client_onauthorizerefund(data: CatResponseData): void {
     this.onauthorizerefund?.(this.getResultObject(data));
   }
 
-  client_onauthorizecompletion(data: any): void {
+  client_onauthorizecompletion(data: CatResponseData): void {
     this.onauthorizecompletion?.(this.getResultObject(data));
   }
 
-  client_onaccessdailylog(data: any): void {
+  client_onaccessdailylog(data: CatResponseData): void {
     this.onaccessdailylog?.(this.getDailyLogObject(data));
   }
 
-  client_oncommandreply(data: any): void {
+  client_oncommandreply(data: CatResponseData): void {
     this.oncommandreply?.(this.getCommandReplyObject(data));
   }
 
-  client_oncheckconnection(data: any): void {
+  client_oncheckconnection(data: unknown): void {
     this.oncheckconnection?.(data);
   }
 
-  client_onclearoutput(data: any): void {
+  client_onclearoutput(data: unknown): void {
     this.onclearoutput?.(data);
   }
 
-  client_onscancode(data: any): void {
+  client_onscancode(data: unknown): void {
     this.onscancode?.(data);
   }
 
-  client_onscandata(data: any): void {
+  client_onscandata(data: unknown): void {
     this.onscandata?.(data);
   }
 
-  client_ondirectio(data: any): void {
+  client_ondirectio(data: unknown): void {
     this.ondirectio?.(data);
   }
 
-  client_onstatusupdate(data: any): void {
+  client_onstatusupdate(data: unknown): void {
     this.onstatusupdate?.(data);
   }
 
-  client_oncashdeposit(data: any): void {
+  client_oncashdeposit(data: CatResponseData): void {
     this.oncashdeposit?.(this.getResultObject(data));
   }
 
-  private getResultObject(data: any): Record<string, any> {
+  private getResultObject(data: CatResponseData): CatResult {
     return {
       status: data.status,
       sequence: data.sequence,
@@ -229,12 +357,12 @@ export class CAT {
     };
   }
 
-  private getDailyLogObject(data: any): Record<string, any> {
+  private getDailyLogObject(data: CatResponseData): CatDailyLogResult {
     return {
       status: data.status,
       service: data.service,
       sequence: data.sequence,
-      dailyLog: data.daily_log?.map((log: any) => ({
+      dailyLog: data.daily_log?.map((log) => ({
         kid: log.kid,
         salesCount: log.sales_count,
         salesAmount: log.sales_amount,
@@ -244,7 +372,7 @@ export class CAT {
     };
   }
 
-  private getCommandReplyObject(data: any): Record<string, any> {
+  private getCommandReplyObject(data: CatResponseData): CatCommandReply {
     return {
       status: data.status,
       command: data.command,
@@ -263,17 +391,17 @@ export class CAT {
   }
 
   // **Callback Properties**
-  onauthorizesales?: (data: any) => void;
-  onauthorizevoid?: (data: any) => void;
-  onauthorizerefund?: (data: any) => void;
-  onauthorizecompletion?: (data: any) => void;
-  onaccessdailylog?: (data: any) => void;
-  oncommandreply?: (data: any) => void;
-  oncheckconnection?: (data: any) => void;
-  onclearoutput?: (data: any) => void;
-  onscancode?: (data: any) => void;
-  onscandata?: (data: any) => void;
-  ondirectio?: (data: any) => void;
-  onstatusupdate?: (data: any) => void;
-  oncashdeposit?: (data: any) => void;
+  onauthorizesales?: (data: CatResult) => void;
+  onauthorizevoid?: (data: CatResult) => void;
+  onauthorizerefund?: (data: CatResult) => void;
+  onauthorizecompletion?: (data: CatResult) => void;
+  onaccessdailylog?: (data: CatDailyLogResult) => void;
+  oncommandreply?: (data: CatCommandReply) => void;
+  oncheckconnection?: (data: unknown) => void;
+  onclearoutput?: (data: unknown) => void;
+  onscancode?: (data: unknown) => void;
+  onscandata?: (data: unknown) => void;
+  ondirectio?: (data: unknown) => void;
+  onstatusupdate?: (data: unknown) => void;
+  oncashdeposit?: (data: CatResult) => void;
 }

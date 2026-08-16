@@ -43,6 +43,20 @@ export class ePOSBuilder {
   protected message: string = '';
 
   /**
+   * Instance constants, vendor parity: `pos.addCut(pos.CUT_FEED)` is the call
+   * the Epson documentation shows, and `pos.CUT_FEED` being `undefined` reads
+   * as `<cut/>`, which the printer takes as `feed`, so asking for
+   * `CUT_NO_FEED` on a label failed silently. Same values as the module-level
+   * `constants/eposbuilder` exports.
+   */
+  readonly CUT_NO_FEED: CutType = "no_feed";
+  readonly CUT_FEED: CutType = "feed";
+  readonly CUT_RESERVE: CutType = "reserve";
+  readonly FULL_CUT_NO_FEED: CutType = "no_feed_fullcut";
+  readonly FULL_CUT_FEED: CutType = "feed_fullcut";
+  readonly FULL_CUT_RESERVE: CutType = "reserve_fullcut";
+
+  /**
    * Halftone algorithm applied when rasterizing images: 0 dither,
    * 1 error diffusion, 2 threshold (HALFTONE_* constants).
    *

@@ -96,7 +96,7 @@ export function usePrinter(): UsePrinterResult {
   }, []);
 
   const disconnect = useCallback(() => {
-    printerRef.current?.close();
+    printerRef.current?.stopMonitor();
     printerRef.current = null;
     setState('idle');
     setError(null);
@@ -123,8 +123,9 @@ export function usePrinter(): UsePrinterResult {
   }, []);
 
   // EposHttpPrinter already implements the polling loop (inherited from
-  // ePOSPrint.open()/close()) and fires onstatuschange / onbatterystatuschange
-  // as ASB bits change, we just decode those into React state.
+  // ePOSPrint.startMonitor()/stopMonitor()) and fires onstatuschange /
+  // onbatterystatuschange as ASB bits change, we just decode those into
+  // React state.
   const startMonitoring = useCallback((intervalMs = 3000) => {
     const printer = printerRef.current;
     if (!printer) throw new Error(NOT_CONNECTED);
@@ -132,7 +133,7 @@ export function usePrinter(): UsePrinterResult {
     const sync = () => setStatus(decodePrinterStatus(printer.status, printer.battery));
     printer.onstatuschange = sync;
     printer.onbatterystatuschange = sync;
-    printer.open();
+    printer.startMonitor();
     setIsMonitoring(true);
   }, []);
 

@@ -128,7 +128,7 @@ export class CommBoxManager {
       // .call(commBox, ...), invoking the detached function would lose
       // `this`, breaking this.callbackInfo inside client_send & co. (the
       // vendor's eval("commBoxObj.client_x(...)") kept the receiver).
-      (commBox[method] as (data: any, sq: number) => void).call(commBox, data, sq);
+      (commBox[method] as (data: MsgData, sq: number) => void).call(commBox, data as MsgData, sq);
     } catch {
       throw new Error(`Failed to run ${method} on commbox ${box_id}.`);
     }

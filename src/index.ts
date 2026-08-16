@@ -35,7 +35,27 @@ export type {
   BarcodeType, Hri, Font, SymbolType, Level, Direction, LineStyle, Alignment,
 } from "./types";
 // Named constants for every enum-valued builder attribute (FONT_A, ALIGN_CENTER,
-// CUT_FEED, HALFTONE_DITHER, ...) and for device management (TYPES, ERRORS,
-// RESULT_OK, IFPORT_EPOSDEVICE, ...). Tree-shakeable: importing none costs nothing.
+// CUT_FEED, HALFTONE_DITHER, ...), the printer status bits (ASB_COVER_OPEN,
+// ASB_RECEIPT_END, ...) and device management (TYPES, ERRORS, DEVICE_TYPE_PRINTER,
+// RESULT_OK, IFPORT_EPOSDEVICE, ...). Whatever a class carries as an instance
+// constant is exported here under the same name. Tree-shakeable: importing none
+// costs nothing.
 export * from "./constants/eposbuilder";
 export * from "./constants/devices";
+export * from "./constants/status";
+// Connection results, named apart because `ERRORS` is already taken by the
+// device-management map: these are what `ePOSDevice.connect()` resolves with.
+export {
+  RESULTS as CONNECT_RESULTS,
+  ERRORS as CONNECTION_ERRORS,
+  ERROR_SYSTEM,
+  ERROR_PARAMETER,
+  ERROR_TIMEOUT,
+  IF_EPOSDEVICE,
+  IF_EPOSPRINT,
+  IF_EPOSDISPLAY,
+  IF_ALL,
+  CONNECT,
+  DISCONNECT,
+  RECONNECTING,
+} from "./constants/connection";

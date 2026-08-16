@@ -8,6 +8,113 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
+## [0.4.0], Unreleased
+
+Three things that only show up once the library is in production: a connection
+failure that couldn't say what went wrong, a monitoring loop that lived on the
+wrong class, and constants that existed in one form but not the other.
+
+### Added
+
+- **Status monitoring works on `EposHttpPrinter`, the class the README
+  recommends.** `startMonitor()` / `stopMonitor()` / `updateStatus()` and the
+  status query behind them lived only on `Printer`, the class
+  `ePOSDevice.createDevice()` hands back. `EposHttpPrinter` declared all eleven
+  status callbacks but only `open()`/`close()` could drive them, so an app that
+  wanted `startMonitor()` (the vendor's name, and the one Epson's own docs use)
+  had to go through `ePOSDevice` and pay for the whole device-management layer:
+  18.5 kB eager instead of 8.6. The loop now lives in `ePOSPrint`, so both
+  classes share one implementation, and `open()`/`close()` are aliases of the
+  new pair. `Printer` keeps only what is genuinely its own: the endpoint it
+  derives from the device connection, and its own status-diff sentinel.
+- **The printer status bits are exported**: `ASB_NO_RESPONSE`,
+  `ASB_COVER_OPEN`, `ASB_RECEIPT_END` and the rest, from both entry points, plus
+  `DRAWER_OPEN_LEVEL_LOW`/`_HIGH`. They existed only as instance fields, so
+  anyone decoding the `status` of a resolved response had to retype the numbers.
+- **The connection constants are exported**: `CONNECT_RESULTS` (what
+  `connect()` resolves with) and `CONNECTION_ERRORS`, plus `IF_*` and
+  `CONNECT`/`DISCONNECT`/`RECONNECTING`. Nothing from `constants/connection`
+  left the package before, which is why apps compared `connect()`'s result
+  against string literals.
+- **Flat `DEVICE_TYPE_*` and `ERROR_DEVICE_*` exports**, so every instance
+  constant has a module twin under the same name: only `TYPES.TYPE_PRINTER`
+  existed at module level, while the instance had `DEVICE_TYPE_PRINTER`.
+
+### Fixed
+
+- **`connect()` says why it failed.** Over the HTTP path
+  (`{ eposprint: true }`) every failure came back as `ERROR_PARAMETER`: a
+  printer that was switched off, a name that didn't resolve and a genuinely
+  malformed address were indistinguishable, and "parameter error" is the least
+  useful of the three things it could mean. The probe already knew: `fetch`
+  reports abort, DNS failure and refused connection separately, and the result
+  was thrown away one call up. `connect()` now resolves with `TIMEOUT` when
+  nothing answered, `ERROR` when something answered but not the ePOS service,
+  and keeps `ERROR_PARAMETER` for an address that isn't a usable URL (an empty
+  one included, which used to go out as a request to a host named after the
+  first path segment). The socket path propagates its own result the same way
+  instead of flattening it.
+  Note this is *not* what the vendor did on this path: its `connect()` also
+  answered `OK`/`ERROR_PARAMETER` and nothing else, because `XMLHttpRequest`
+  reports a dead host as `status 0`, indistinguishable from a rejected request.
+  The `TIMEOUT`/`ERROR` vocabulary is the vendor's own (`ACCESS_TIMEOUT` /
+  `ACCESS_ERROR`), reused here for the distinction `fetch` can actually make.
+- **`printer.CUT_FEED` is no longer `undefined`.** `ALIGN_*`, `COLOR_*` and
+  `MODE_*` were instance constants and `CUT_*` were not, so
+  `addCut(pos.CUT_FEED)` emitted `<cut/>`, which the printer reads as
+  `type="feed"`: right by accident for a receipt, and silently wrong for a label
+  asking for `CUT_NO_FEED`. `CUT_*` and `FULL_CUT_*` now sit on the builder,
+  like the vendor has them.
+- **The monitoring poll never prints what you have built but not sent.** The
+  loop used to call `send()`, which since 0.3.0 takes ownership of the builder
+  buffer, so anything composed while monitoring was running could go out on the
+  next tick. The poll is its own status query now, independent of the buffer.
+
+### Changed
+
+- **BREAKING** `connect()` resolves with `TIMEOUT` / `ERROR` where it used to
+  resolve with `ERROR_PARAMETER`. Code that treats "not `OK`" as failure is
+  unaffected; code that compares against `ERROR_PARAMETER` specifically has to
+  compare against `CONNECT_RESULTS` instead.
+- **BREAKING** The event handlers are typed. `onreceive` receives a
+  `PrintServiceResponse`, `onerror` a `{ status, responseText }`,
+  `onstatuschange`/`onbatterystatuschange` a `number`, and the rest take no
+  arguments, instead of every one of them being `(event?: any, sq?: number)`.
+  A handler that declared a parameter it never used may have to drop it.
+- **BREAKING** `CAT` and `CashChanger` no longer take or hand back `any`. Their
+  inputs and their result objects are declared interfaces
+  (`CatTransactionParams`, `CatResult`, `CatDailyLogResult`, `CatCommandReply`,
+  `CashChangerConfig`, ...), with every field optional and values typed
+  `string | number`: the field *names* are in the vendor code, but the CAT
+  protocol is absent from the ePOS-Device XML manual and there is no terminal
+  here to check the semantics against, so anything narrower would be invented.
+  Callbacks that forward the service payload untouched (`oncheckconnection`,
+  `onscandata`, `ondirectio`, ...) hand out `unknown` instead of `any`, which is
+  the same information without the false promise. TypeScript consumers of these
+  two classes may need to narrow where they used to get `any`.
+- **BREAKING** `Printer.timeoutid` is gone: the poll's timer is `intervalid`,
+  shared with `ePOSPrint`. `Connection.probeWebServiceIF()` returns the probe
+  result instead of the elapsed milliseconds, which nobody read.
+- **`no-explicit-any` is down from 92 warnings to zero.** Beyond the two classes
+  above: `Ofsc`, `CommBox`, `CommBoxManager`, `ePOSDevice` and the `msCrypto`
+  fallbacks are typed, and the device-data dispatch is a declared handler table
+  instead of a cast. The one `any` left, the positional wire array in
+  `MessageFactory.parseRequestMessage`, is suppressed in place with the reason:
+  its element types depend on the request in slot 0, so `unknown[]` would only
+  move the casts around.
+- Sizes moved: monitoring is in the HTTP entry now, and the status constants
+  with it. Reproduce with `pnpm size`. *Eager* is the entry plus everything it
+  reaches through static imports, which is what loads before any code runs:
+
+  | import | 0.3.0 eager | 0.4.0 eager | 0.4.0 on demand |
+  | --- | --- | --- | --- |
+  | `EposHttpPrinter` from `epos-printer-sdk/http` | 8.00 kB | 8.60 kB | — |
+  | `ePOSDevice` from `epos-printer-sdk` | 17.31 kB | 18.51 kB | 32.21 kB in 6 chunks |
+  | `ePosCrypto` from `epos-printer-sdk` | 11.95 kB | 11.95 kB | — |
+
+  The 0.60 kB the HTTP entry gains saves an app that monitors 9.91 kB, which is
+  what reaching `startMonitor()` through `ePOSDevice` used to cost.
+
 ## [0.3.0], 2026-08-15
 
 Builder API parity and a packaging pass: the pieces of the vendor surface that

@@ -1,5 +1,4 @@
 import { CanvasPrint } from "../components/CanvasPrint";
-import { ePOSBuilder } from "../builders/ePOSBuilder";
 import { MessageFactory } from "../components/MessageFactory";
 import type { ePOSDevice } from "../components/ePOSDevice";
 import { Data } from "../components/ePosDeviceMessage";
@@ -11,7 +10,11 @@ export class Printer extends CanvasPrint {
   ePosDev: ePOSDevice;
   timeout: number;
   message: string;
-  timeoutid: any;
+
+  // The vendor's Printer diffs the first reading against ASB_DRAWER_KICK, not
+  // against 0 like ePOSPrint does, so its seed has to match (see
+  // fireStatusEvent below, kept as its own copy for that reason).
+  protected monitorSeedStatus = this.ASB_DRAWER_KICK;
 
   constructor(deviceID: string, isCrypto: boolean, ePOSDevice: ePOSDevice) {
     super(deviceID);
@@ -178,53 +181,20 @@ export class Printer extends CanvasPrint {
     }
   }
 
+  // The device's own endpoint, which only exists once ePOSDevice has
+  // connected: everything else about the poll lives in ePOSPrint.
   startMonitor(): boolean {
-    const address = `${this.connection?.getOrigin()}/cgi-bin/epos/service.cgi?devid=${this.deviceID}&timeout=10000`;
-
     if (!this.enabled) {
-      this.address = address;
-      this.enabled = true;
-      this.status = this.ASB_DRAWER_KICK;
-      void this.sendStartMonitorCommand();
+      this.address = `${this.connection?.getOrigin()}/cgi-bin/epos/service.cgi?devid=${this.deviceID}&timeout=10000`;
     }
-
-    return true;
-  }
-
-  stopMonitor(): boolean {
-    this.enabled = false;
-    if (this.timeoutid) {
-      clearTimeout(this.timeoutid);
-      delete this.timeoutid;
-    }
-    return true;
+    return super.startMonitor();
   }
 
   finalize(): void {
     this.stopMonitor();
   }
 
-  updateStatus(): void {
-    if (this.enabled) {
-      const delay = isNaN(this.interval) || this.interval < 1000 ? 3000 : this.interval;
-      this.timeoutid = setTimeout(() => {
-        delete this.timeoutid;
-        if (this.enabled) {
-          void this.sendStartMonitorCommand();
-        }
-      }, delay);
-    }
-  }
-
-  private async sendStartMonitorCommand(): Promise<void> {
-    const soap = buildSoapEnvelope(new ePOSBuilder().toString());
-
-    try {
-      const res = await postPrintRequest(this.address, soap, 10000, undefined, this.fetchImpl);
-      this.fireStatusEvent(this, res.status, res.battery);
-    } catch {
-      this.fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);
-    }
-    this.updateStatus();
+  protected fireMonitorStatus(status: number, battery: number): void {
+    this.fireStatusEvent(this, status, battery);
   }
 }

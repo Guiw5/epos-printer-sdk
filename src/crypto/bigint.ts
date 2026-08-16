@@ -66,7 +66,7 @@ let rpprb: BigIntArray = t;
 
 // Utility functions
 function adapterMathRandom(): number {
-    let crypto = window.crypto || (window as any).msCrypto;
+    let crypto = window.crypto || (window as Window & { msCrypto?: Crypto }).msCrypto!;
     let rand: number;
     
     try {

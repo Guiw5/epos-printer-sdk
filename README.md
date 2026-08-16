@@ -52,7 +52,7 @@ callback-driven API. This package is a modern replacement.
   automatically, because the hardware processes them one at a time anyway.
   Ten simultaneous jobs with a 2s timeout against a real TM-T88V: 4/10 succeed
   without this, 10/10 with it.
-- **Verified, not just written.** 71 unit tests for the library and 18 for the
+- **Verified, not just written.** 106 unit tests for the library and 18 for the
   demo, plus opt-in integration tests that run against a physical printer.
 
 ## Install
@@ -210,9 +210,13 @@ printer.onstatuschange = () => {
 printer.onpaperend = () => alert('Out of paper!');
 printer.oncoveropen = () => alert('Cover is open');
 
-printer.open();   // starts polling
-printer.close();  // stops it
+printer.startMonitor();  // starts polling
+printer.stopMonitor();   // stops it
 ```
+
+`open()` / `close()` are the same thing under the vendor's other name. Both live
+on `EposHttpPrinter` and on the `Printer` that `ePOSDevice.createDevice()`
+returns: the poll is one implementation, shared.
 
 ### Cash drawer
 
@@ -307,7 +311,8 @@ it, which is why it needs no printer on the network.
 | `print(canvas, printjobid?)` | `Promise<PrintServiceResponse>` | Renders and prints a canvas |
 | `getPrintJobStatus(id)` | `Promise<PrintServiceResponse>` | Status of a previous job |
 | `recover()` / `reset()` | `Promise<PrintServiceResponse>` | Clear a recoverable error |
-| `open()` / `close()` | `void` | Start/stop status polling |
+| `startMonitor()` / `stopMonitor()` | `boolean` | Start/stop status polling |
+| `open()` / `close()` | `void` | The same pair, under the vendor's other name |
 
 **Builder methods** (all chainable):
 
@@ -329,14 +334,32 @@ it, which is why it needs no printer on the network.
 `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`,
 `onreceive`, `onerror`.
 
+## Constants
+
+Every constant is exported from the package, and importing none of them costs
+nothing:
+
+```ts
+import { CUT_NO_FEED, ALIGN_CENTER, ASB_COVER_OPEN } from 'epos-printer-sdk/http';
+import { TYPES, DEVICE_TYPE_PRINTER, CONNECT_RESULTS } from 'epos-printer-sdk';
+```
+
+Classes you construct yourself (`EposHttpPrinter`, `ePOSDevice`) *also* carry
+them as instance constants, because that is how Epson's own documentation calls
+them: `pos.addCut(pos.CUT_FEED)`, `dev.createDevice(id, dev.DEVICE_TYPE_PRINTER)`.
+The rule is that both forms exist under the same name and resolve to the same
+value, and a test enforces it. Devices you never construct by hand (`CAT`,
+`CashChanger`, handed to you by `createDevice()`) keep their constants on the
+instance only.
+
 ## Bundle size
 
 Two entry points, so HTTP-only consumers never pull in the socket transport:
 
 | Import | Contents | Size (gzip) |
 |---|---|---|
-| `epos-printer-sdk/http` | `EposHttpPrinter`, `decodePrinterStatus`, types | **~7 KB** |
-| `epos-printer-sdk` | Everything, incl. `ePOSDevice` + device management | ~30 KB (+31 KB `socket.io-client`, only if you install it, see below) |
+| `epos-printer-sdk/http` | `EposHttpPrinter`, `decodePrinterStatus`, types | **8.6 KB** |
+| `epos-printer-sdk` | Everything, incl. `ePOSDevice` + device management | 18.5 KB eager, 32 KB more on demand (+16 KB `socket.io-client`, only if you install it, see below) |
 
 The legacy `socket.io-client@0.8.7` the ePOS-Device socket transport needs is an
 **optional peer dependency**: it is not installed by default, because it drags
@@ -387,11 +410,16 @@ import { ePOSDevice } from 'epos-printer-sdk';
 
 const epos = new ePOSDevice();
 const result = await epos.connect('192.168.1.100', 8008);
-if (result !== 'OK') throw new Error(result);
+if (result !== 'OK') throw new Error(result); // 'TIMEOUT' | 'ERROR' | 'ERROR_PARAMETER'
 
 const printer = await epos.createDevice('local_printer', 'type_printer');
 await printer.addText('Hi\n').addCut('feed').send();
 ```
+
+`connect()` says *why* it failed: `TIMEOUT` when nothing answered (printer off,
+unplugged, wrong address), `ERROR` when something answered but not the ePOS
+service, and `ERROR_PARAMETER` when the address isn't a usable URL. Compare
+against `CONNECT_RESULTS` rather than string literals.
 
 Note the port rule differs from `EposHttpPrinter`: here only `8008` selects
 plain HTTP, anything else (including `80`) is treated as HTTPS. That is the

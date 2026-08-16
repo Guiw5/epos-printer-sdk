@@ -1,12 +1,12 @@
 import { Connection } from "./Connection";
-import { MsgData } from "./ePosDeviceMessage";
+import { Data, MsgData } from "./ePosDeviceMessage";
 import { MessageFactory } from "./MessageFactory";
 
 export class Ofsc {
   private readonly SERVICE_ID = "OFSC";
   private connection: Connection | null = null;
 
-  private callback: any;
+  private callback: ((xml: string) => void) | null = null;
   /**
    * Sets the connection object for communication.
    * @param connection - The connection object to use.
@@ -22,7 +22,7 @@ export class Ofsc {
    * @param crypto - Whether encryption is required.
    * @returns A Promise resolving with the response data.
    */
-  public send(xml: string, timeout: number, crypto: boolean, callback: any): void {
+  public send(xml: string, timeout: number, crypto: boolean, callback: (xml: string) => void): void {
     this.callback = callback;
     if (!this.connection) {
       throw new Error("Connection object is not set");
@@ -46,9 +46,11 @@ export class Ofsc {
    * Handles incoming messages and resolves the corresponding request.
    * @param eposmsg - The received message.
    */
-  public notify(eposmsg: { isCrypto: string | boolean; data: any }): void {
+  public notify(eposmsg: { isCrypto: string | boolean; data: Data }): void {
     const isCrypto = eposmsg.isCrypto === "1" || Boolean(eposmsg.isCrypto);
-    const data = isCrypto ? MessageFactory.decrypt(eposmsg.data) : eposmsg.data;
+    // The OFSC reply carries its payload in `resultdata`, which is not part of
+    // the device message shapes the rest of the protocol uses.
+    const data = (isCrypto ? MessageFactory.decrypt(eposmsg.data as string) : eposmsg.data) as unknown as { resultdata: string };
     // console.log("Received data:", data);
     this.onxmlresult(data.resultdata)
   }

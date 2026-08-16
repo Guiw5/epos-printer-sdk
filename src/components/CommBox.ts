@@ -4,6 +4,12 @@ import { MessageFactory } from "./MessageFactory";
 import { Connection } from "./Connection";
 import { MsgData } from "./ePosDeviceMessage";
 
+/**
+ * Whatever the CommBox service answers with as its history list. The vendor
+ * never declares a shape for it, and there is no device here to observe one.
+ */
+export type CommHistory = unknown;
+
 export class CommBox {
   readonly ERROR_OK = "OK";
   readonly ERROR_NOT_OPENED = "NOT_OPENED";
@@ -22,7 +28,7 @@ export class CommBox {
     this.connection = this.commBoxManager.getConnection();
   }
 
-  async getCommHistory(option?: { allHistory?: boolean }): Promise<any> {
+  async getCommHistory(option?: { allHistory?: boolean }): Promise<CommHistory> {
     const allHistory = option?.allHistory ?? false;
     const data = { type: "getcommhistory", box_id: this.boxID, all_history: allHistory } as unknown as MsgData;
     const eposmsg = MessageFactory.getCommBoxDataMessage(data);
@@ -33,7 +39,7 @@ export class CommBox {
         return;
       }
 
-      this.callbackInfo.addCallback((code: string, historyList: any) => {
+      this.callbackInfo.addCallback((code: string, historyList: CommHistory) => {
         if (code === this.ERROR_OK) {
           resolve(historyList);
         } else {
@@ -67,7 +73,7 @@ export class CommBox {
     });
   }
 
-  client_getcommhistory(data: { code: string; history_list: any }, sq: number): void {
+  client_getcommhistory(data: { code: string; history_list: CommHistory }, sq: number): void {
     const getCommHistoryCB = this.callbackInfo.getCallback(sq);
     this.callbackInfo.removeCallback(sq);
     getCommHistoryCB?.(data.code, data.history_list, sq);

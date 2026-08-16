@@ -1,7 +1,7 @@
 # epos-printer-sdk
 
 > TypeScript library for printing to Epson TM receipt printers (TM-T88V and
-> compatible) over the ePOS-Print HTTP protocol. Zero dependencies, ~6.7 KB
+> compatible) over the ePOS-Print HTTP protocol. Zero dependencies, 8.6 KB
 > gzipped in a bundled app, Promise-based, works in browsers and in Node 18+.
 > Ships ESM and CommonJS. A ground-up reimplementation of Epson's ePOS SDK,
 > not a wrapper around it.
@@ -78,7 +78,11 @@ if (!result.success) console.error(result.code);
 - `printer.print(canvas, printjobid?)`, renders and prints an HTMLCanvasElement.
 - `printer.getPrintJobStatus(printjobid)`, status of a previously sent job.
 - `printer.recover()` / `printer.reset()`, clear a recoverable printer error.
-- `printer.open()` / `printer.close()`, start/stop background status polling.
+- `printer.startMonitor()` / `printer.stopMonitor()`, start/stop background
+  status polling, which fires the status events below as the ASB bits change.
+  `open()` / `close()` are the vendor's other name for the same pair. The poll
+  is a status query of its own, it never sends what the builder holds.
+  `updateStatus()` schedules the next query and runs on its own.
 - `createSimulator({ initialState?, latencyMs?, onPrint? })` (from
   `epos-printer-sdk/simulator`) returns `{ fetch, state, jobs, reset() }`.
 - `decodePrinterStatus(status, battery)`, decodes the raw ASB bitmask into `{ online, coverOpen, paper, drawerOpen, battery, raw }`.
@@ -92,14 +96,18 @@ if (!result.success) console.error(result.code);
   The first two are validated inside `addImage()`, not on assignment. `force`
   emits `force="true"` for one job: `send()` clears it, as `recover()` relies on.
 - Constants are exported: `epos-printer-sdk/http` re-exports the builder ones
-  (`FONT_A`, `ALIGN_CENTER`, `CUT_FEED`, `CUT_NO_FEED`, `HALFTONE_DITHER`, ...),
+  (`FONT_A`, `ALIGN_CENTER`, `CUT_FEED`, `CUT_NO_FEED`, `HALFTONE_DITHER`, ...)
+  and the printer status bits (`ASB_COVER_OPEN`, `ASB_RECEIPT_END`, ...);
   `epos-printer-sdk` those plus the device ones (`TYPES`, `NAMES`, `ERRORS`,
-  `RESULT_OK`, `IFPORT_EPOSDEVICE`, ...). `ePOSDevice` also carries them as
-  instance fields (`device.DEVICE_TYPE_PRINTER`), matching the vendor SDK.
+  `DEVICE_TYPE_PRINTER`, `RESULT_OK`, `IFPORT_EPOSDEVICE`, `CONNECT_RESULTS`,
+  `CONNECTION_ERRORS`, ...). The classes you construct yourself also carry them
+  as instance fields under the same names (`printer.CUT_FEED`,
+  `device.DEVICE_TYPE_PRINTER`), matching the vendor SDK; both forms always
+  exist and agree.
 - Every enum-valued builder argument is validated and throws on an unknown
   value; `printjobid` must be up to 30 characters of `[0-9A-Za-z_-]`.
 - Events (push-based state): `onstatuschange`, `onbatterystatuschange`, `ononline`, `onoffline`, `onpoweroff`, `oncoveropen`, `oncoverok`, `onpaperend`, `onpapernearend`, `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`, `onreceive`, `onerror`.
-- `ePOSDevice` (full entry only) is the session and device-management layer, not a transport: it runs over HTTP or the socket and decides which (`{ eposprint: true }` forces HTTP). Nothing extends it; the builder chain is separate. API: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`.
+- `ePOSDevice` (full entry only) is the session and device-management layer, not a transport: it runs over HTTP or the socket and decides which (`{ eposprint: true }` forces HTTP). Nothing extends it; the builder chain is separate. API: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`. `connect()` resolves with `'OK'` or with the reason it failed: `'TIMEOUT'` (nothing answered: printer off, unplugged, wrong address), `'ERROR'` (something answered, but not the ePOS service) or `'ERROR_PARAMETER'` (the address is not a usable URL).
 
 ## Error codes
 
