@@ -8,7 +8,7 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
-## [0.5.0], Unreleased
+## [0.5.0], 2026-08-16
 
 0.4.0 taught the probe behind `ePOSDevice.connect()` to say *why* a connection
 failed. `EposHttpPrinter`, the class the README recommends and the one apps
