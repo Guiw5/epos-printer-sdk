@@ -302,7 +302,6 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
    */
   async send(...params: [string?, string?, string?]): Promise<PrintServiceResponse> {
     const { address, request, printjobid, isPrintRequest } = this.getSendParams(params);
-    const isStatusQuery = !isPrintRequest;
     if (isPrintRequest) {
       // send() takes ownership of the builder state: the body is already
       // consumed by now, and force applies to the job it was set for, not
@@ -311,6 +310,26 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     }
     const soap = buildSoapEnvelope(request, printjobid);
 
+    try {
+      return await this.dispatch(address, soap, isPrintRequest);
+    } catch (err) {
+      if (isPrintRequest) {
+        throw err;
+      }
+      return { success: false, code: '', status: this.ASB_NO_RESPONSE, battery: 0, printjobid: printjobid ?? '' };
+    }
+  }
+
+  /**
+   * One request, its events fired, and a failure that reaches the caller as
+   * the transport's {@link PrintServiceError}, `code` and all.
+   *
+   * `send()` throws that away for a status query, because the vendor's poll
+   * reports an unreachable printer as ASB_NO_RESPONSE instead of failing.
+   * Whoever does need the cause of a failed status query
+   * (`EposHttpPrinter.connect()`) goes through here.
+   */
+  protected async dispatch(address: string, soap: string, isPrintRequest: boolean): Promise<PrintServiceResponse> {
     try {
       let res = await postPrintRequest(address, soap, this.timeout, undefined, this.fetchImpl);
       // Same normalization the vendor applies inside its onreceive path,
@@ -326,13 +345,13 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       }
       return res;
     } catch (err) {
-      const { status, responseText } = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
-      if (isStatusQuery) {
+      const error = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
+      if (isPrintRequest) {
+        fireErrorEvent(this, error.status, error.responseText);
+      } else {
         fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);
-        return { success: false, code: '', status: this.ASB_NO_RESPONSE, battery: 0, printjobid: printjobid ?? '' };
       }
-      fireErrorEvent(this, status, responseText);
-      throw new PrintServiceError(status, responseText);
+      throw error;
     }
   }
 }

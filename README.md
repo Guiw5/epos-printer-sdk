@@ -80,7 +80,7 @@ import { EposHttpPrinter } from 'epos-printer-sdk/http';
 const printer = new EposHttpPrinter('192.168.1.100');
 
 // Optional: verify the printer answers before sending a job.
-await printer.connect(); // throws if unreachable
+await printer.connect(); // throws a PrintServiceError saying why, if it can't
 
 const result = await printer
   .addTextAlign('center')
@@ -232,6 +232,43 @@ retrying a job that failed because the paper ran out just wastes time, while
 only when the printer can't be reached; a printer that answers but refuses the
 job resolves with `success: false` and a `code`.
 
+### The printer can't be reached
+
+`connect()` and a failed `send()` reject with a `PrintServiceError`, whose
+`code` says which kind of unreachable it was, so the branch is a `switch` and
+not a string match. `message` is that same reason in Spanish, ready to show;
+`status` and `responseText` keep the raw detail for a log.
+
+| `code` | What happened | What it usually means |
+|---|---|---|
+| `TIMEOUT` | Nothing answered before `timeout` ran out | The printer is off or unplugged |
+| `UNREACHABLE` | The request never got out: name doesn't resolve, connection refused, TLS or CORS | Nothing on the network claims that address |
+| `ERROR` | Something answered, but not the ePOS service (non-2xx, or unparseable) | Wrong endpoint or `deviceId` |
+| `ERROR_PARAMETER` | The address isn't a requestable URL | Bad configuration, an empty host included |
+
+```ts
+import { EposHttpPrinter, PrintServiceError, PRINT_SERVICE_ERRORS } from 'epos-printer-sdk/http';
+
+try {
+  await printer.connect();
+} catch (err) {
+  if (!(err instanceof PrintServiceError)) throw err;
+  switch (err.code) {
+    case PRINT_SERVICE_ERRORS.TIMEOUT:     return askOperator('Is the printer on?');
+    case PRINT_SERVICE_ERRORS.UNREACHABLE: return askOperator('Check the printer address.');
+    default:                               return report(err.message);
+  }
+}
+```
+
+Three of those four are the values `ePOSDevice.connect()` resolves with
+(`CONNECT_RESULTS`). `UNREACHABLE` is the extra one: the socket probe folds it
+into `TIMEOUT`, while over HTTP the two are worth telling apart. A printer that
+is merely off costs the whole timeout; an address that names nothing fails in
+milliseconds.
+
+### The printer answers, and refuses the job
+
 | `code` | Meaning | What to do |
 |---|---|---|
 | `ERROR_DEVICE_BUSY` | Another client is printing | **Retry** with backoff, expected with several clients |
@@ -306,7 +343,7 @@ it, which is why it needs no printer on the network.
 
 | Method | Returns | Description |
 |---|---|---|
-| `connect()` | `Promise<PrintServiceResponse>` | Health check; throws if unreachable |
+| `connect()` | `Promise<PrintServiceResponse>` | Health check; rejects with a `PrintServiceError` whose `code` says why |
 | `send()` | `Promise<PrintServiceResponse>` | Sends what was built (or queries status) |
 | `print(canvas, printjobid?)` | `Promise<PrintServiceResponse>` | Renders and prints a canvas |
 | `getPrintJobStatus(id)` | `Promise<PrintServiceResponse>` | Status of a previous job |
@@ -340,7 +377,7 @@ Every constant is exported from the package, and importing none of them costs
 nothing:
 
 ```ts
-import { CUT_NO_FEED, ALIGN_CENTER, ASB_COVER_OPEN } from 'epos-printer-sdk/http';
+import { CUT_NO_FEED, ALIGN_CENTER, ASB_COVER_OPEN, PRINT_SERVICE_ERRORS } from 'epos-printer-sdk/http';
 import { TYPES, DEVICE_TYPE_PRINTER, CONNECT_RESULTS } from 'epos-printer-sdk';
 ```
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createSimulator } from '../simulator';
 import { EposHttpPrinter } from '../components/EposHttpPrinter';
+import { PRINT_SERVICE_ERRORS } from '../constants/connection';
 
 // The simulator's whole value is that code written against it behaves the same
 // against hardware, so these drive it through the real EposHttpPrinter,
@@ -49,7 +50,12 @@ describe('createSimulator', () => {
     const { sim, printer } = makePrinter();
     sim.state.online = false;
 
-    await expect(printer.connect()).rejects.toThrow();
+    const error = await printer.connect().catch((e) => e);
+
+    // The simulator rejects at the network layer, like fetch does for a host
+    // that isn't there, so the cause it reports is the same one.
+    expect(error).toBeInstanceOf(Error);
+    expect(error.code).toBe(PRINT_SERVICE_ERRORS.UNREACHABLE);
   });
 
   it('a status query answers without consuming paper', async () => {

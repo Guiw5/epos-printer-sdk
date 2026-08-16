@@ -1,5 +1,8 @@
 import { CanvasPrint } from "./CanvasPrint";
+import { ePOSBuilder } from "../builders/ePOSBuilder";
+import { buildSoapEnvelope, PrintServiceError } from "../builders/httpTransport";
 import type { FetchLike, PrintServiceResponse } from "../builders/httpTransport";
+import { PRINT_SERVICE_ERRORS } from "../constants/connection";
 
 export interface EposHttpPrinterOptions {
   /** Port used only to pick http vs https, never appended to request URLs. Default: 443 (https). */
@@ -37,11 +40,25 @@ export class EposHttpPrinter extends CanvasPrint {
     this.fetchImpl = options.fetch;
   }
 
-  /** Confirms the printer is reachable. Throws if it isn't. */
+  /**
+   * Confirms the printer is reachable. Throws a {@link PrintServiceError}
+   * whose `code` says why it isn't: `TIMEOUT` (nothing answered in time, the
+   * printer is off or the address is dead), `UNREACHABLE` (the request never
+   * got out: the name doesn't resolve, the connection was refused, CORS),
+   * `ERROR` (something answered, but not the ePOS service) or
+   * `ERROR_PARAMETER` (the address isn't a usable URL). `message` carries the
+   * same thing in Spanish, ready to show.
+   *
+   * Deliberately its own status query rather than `send()`: `send()` reports
+   * an unreachable printer as ASB_NO_RESPONSE instead of failing, which is
+   * exactly the cause this has to surface, and it would print whatever the
+   * caller had already built.
+   */
   async connect(): Promise<PrintServiceResponse> {
-    const res = await this.send();
+    const soap = buildSoapEnvelope(new ePOSBuilder().toString());
+    const res = await this.dispatch(this.address, soap, false);
     if (res.status & this.ASB_NO_RESPONSE) {
-      throw new Error('No se pudo conectar con la impresora (sin respuesta).');
+      throw new PrintServiceError(res.status, '', PRINT_SERVICE_ERRORS.TIMEOUT, 'No se pudo conectar con la impresora (sin respuesta).');
     }
     return res;
   }

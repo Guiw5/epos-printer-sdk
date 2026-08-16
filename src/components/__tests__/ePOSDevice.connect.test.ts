@@ -33,10 +33,14 @@ describe('ePOSDevice.connect over the HTTP (eposprint) path', () => {
     expect(device.isConnected()).toBe(true);
   });
 
-  it('resolves TIMEOUT when the host is unreachable (DNS, refused connection)', async () => {
+  // Same distinction EposHttpPrinter reports, from the same vocabulary: a
+  // request that never got out is not a request that waited and got nothing.
+  it('resolves UNREACHABLE when the request never gets out (DNS, refused connection)', async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed'));
 
-    await expect(device.connect('unreachable.invalid', 8043, { eposprint: true })).resolves.toBe(RESULTS.TIMEOUT);
+    await expect(device.connect('unreachable.invalid', 8043, { eposprint: true })).resolves.toBe(
+      RESULTS.UNREACHABLE
+    );
     expect(device.isConnected()).toBe(false);
   });
 

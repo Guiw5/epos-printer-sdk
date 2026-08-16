@@ -2,6 +2,8 @@
 // (status polling / job status queries) and Printer (printing + monitoring)
 // so the request/response plumbing only lives in one place.
 
+import { PRINT_SERVICE_ERRORS, type PrintServiceErrorCode } from '../constants/connection';
+
 export interface PrintServiceResponse {
   success: boolean;
   code: string;
@@ -10,10 +12,51 @@ export interface PrintServiceResponse {
   printjobid: string;
 }
 
-/** Thrown when the print service can't be reached or replies with something we can't parse. */
+/**
+ * Thrown when the print service can't be reached or replies with something we
+ * can't parse. `code` says which of those it was (see
+ * {@link PRINT_SERVICE_ERRORS}), so a caller can `switch` on the cause instead
+ * of matching strings; `message` is that same cause in Spanish, ready to show;
+ * `status` and `responseText` keep the raw detail for a log.
+ */
 export class PrintServiceError extends Error {
-  constructor(public readonly status: number, public readonly responseText: string) {
-    super(`ePOS print service error (status ${status})`);
+  constructor(
+    public readonly status: number,
+    public readonly responseText: string,
+    public readonly code: PrintServiceErrorCode = PRINT_SERVICE_ERRORS.ERROR,
+    message: string = messageFor(code, status)
+  ) {
+    super(message);
+    this.name = 'PrintServiceError';
+  }
+}
+
+function messageFor(code: PrintServiceErrorCode, status: number): string {
+  switch (code) {
+    case PRINT_SERVICE_ERRORS.TIMEOUT:
+      return 'La impresora no respondió a tiempo.';
+    case PRINT_SERVICE_ERRORS.UNREACHABLE:
+      return 'No se pudo conectar con la impresora en esa dirección.';
+    case PRINT_SERVICE_ERRORS.ERROR_PARAMETER:
+      return 'La dirección de la impresora no es válida.';
+    default:
+      return `El servicio de impresión respondió de forma inesperada (HTTP ${status}).`;
+  }
+}
+
+/**
+ * An address that can't be turned into a URL with a host (an empty printer
+ * address is the usual way in) is a bad argument, not an unreachable printer,
+ * and `fetch` would either throw for the wrong reason or, for `https:///path`,
+ * quietly request a host named after the first path segment: `URL` accepts an
+ * empty authority and promotes `cgi-bin` to hostname, so that form has to be
+ * rejected before it gets there.
+ */
+export function isRequestableUrl(url: string): boolean {
+  try {
+    return !/^[a-z][a-z0-9+.-]*:\/\/(\/|$)/i.test(url) && new URL(url).hostname.length > 0;
+  } catch {
+    return false;
   }
 }
 
@@ -44,7 +87,7 @@ export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
  * POSTs a SOAP-wrapped ePOS-Print request and parses the <response> element
  * back into a plain object. Rejects with PrintServiceError on network
  * failure, timeout, a non-200 response, or a response with no <response>
- * element to parse.
+ * element to parse; its `code` says which.
  *
  * Requests to the same endpoint are serialized (see above); the per-request
  * timeout starts when the request is actually sent, not while it waits its
@@ -57,6 +100,12 @@ export async function postPrintRequest(
   signal?: AbortSignal,
   fetchImpl?: FetchLike
 ): Promise<PrintServiceResponse> {
+  // Before queueing: an address nobody can request is not worth a turn in
+  // line behind the printer's real traffic.
+  if (!isRequestableUrl(address)) {
+    throw new PrintServiceError(0, address, PRINT_SERVICE_ERRORS.ERROR_PARAMETER);
+  }
+
   const previous = inFlightByEndpoint.get(address);
 
   let markDone!: () => void;
@@ -91,7 +140,16 @@ async function sendPrintRequest(
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort);
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  // A rejected fetch looks the same whoever caused it, and the browser won't
+  // say more than "Failed to fetch". Remembering that the abort was ours is
+  // what separates "nothing answered in the time we gave it" from "the
+  // request never got out", which is the whole difference between a printer
+  // that is off and an address that names nothing.
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
 
   try {
     let res: Response;
@@ -107,7 +165,8 @@ async function sendPrintRequest(
         signal: controller.signal,
       });
     } catch (err) {
-      throw new PrintServiceError(0, String(err));
+      const cause = timedOut ? PRINT_SERVICE_ERRORS.TIMEOUT : PRINT_SERVICE_ERRORS.UNREACHABLE;
+      throw new PrintServiceError(0, String(err), cause);
     }
 
     const text = await res.text();

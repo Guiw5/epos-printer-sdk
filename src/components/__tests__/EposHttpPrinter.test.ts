@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EposHttpPrinter } from '../EposHttpPrinter';
+import { PrintServiceError, type FetchLike } from '../../builders/httpTransport';
+import { PRINT_SERVICE_ERRORS } from '../../constants/connection';
+
+/** A name that doesn't resolve, a refused connection, CORS: fetch rejects on its own, in milliseconds. */
+const rejectsImmediately: FetchLike = () => Promise.reject(new TypeError('Failed to fetch'));
+
+/** A dead address on the LAN: the request goes out and nothing ever comes back. */
+const neverAnswers: FetchLike = (_url, init) =>
+  new Promise((_resolve, reject) => {
+    init.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')));
+  });
 
 function fakeResponse(status: number, body: string): Response {
   return {
@@ -60,6 +71,79 @@ describe('EposHttpPrinter', () => {
     const printer = new EposHttpPrinter('printer.example.com');
 
     await expect(printer.connect()).rejects.toThrow();
+  });
+
+  // Both failures used to arrive as the same bare Error, so the app on the
+  // other side could only ever say "no se pudo conectar": a printer that is
+  // off and an address that names nothing need different answers from
+  // whoever is standing at the counter.
+  describe('connect() reports why it failed', () => {
+    it('a printer that answers resolves with its status, no error at all', async () => {
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ status: '2' })));
+      const printer = new EposHttpPrinter('printer.example.com');
+
+      await expect(printer.connect()).resolves.toMatchObject({ status: 2 });
+    });
+
+    it('a host that does not resolve is UNREACHABLE, and still a plain Error with a message to show', async () => {
+      const printer = new EposHttpPrinter('no-such-printer.local', { fetch: rejectsImmediately });
+
+      const error = await printer.connect().catch((e) => e);
+
+      expect(error).toBeInstanceOf(PrintServiceError);
+      expect(error).toBeInstanceOf(Error);
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.UNREACHABLE);
+      expect(error.message).toMatch(/impresora/i);
+    });
+
+    it('an address nothing answers at is TIMEOUT, once the request timeout is spent', async () => {
+      const printer = new EposHttpPrinter('192.0.2.10', { fetch: neverAnswers, timeout: 50 });
+
+      const error = await printer.connect().catch((e) => e);
+
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.TIMEOUT);
+      expect(error.message).toMatch(/impresora/i);
+    });
+
+    it('an address that is not a usable URL is ERROR_PARAMETER, and never leaves the process', async () => {
+      const printer = new EposHttpPrinter('');
+
+      const error = await printer.connect().catch((e) => e);
+
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.ERROR_PARAMETER);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('something that answers but is not the ePOS service is ERROR, with the HTTP status kept', async () => {
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(404, 'Not Found'));
+      const printer = new EposHttpPrinter('printer.example.com');
+
+      const error = await printer.connect().catch((e) => e);
+
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.ERROR);
+      expect(error.status).toBe(404);
+      expect(error.responseText).toBe('Not Found');
+    });
+
+    it('a failed print request carries the cause too', async () => {
+      const printer = new EposHttpPrinter('printer.example.com', { fetch: rejectsImmediately });
+
+      const error = await printer.addText('hola\n').send().catch((e) => e);
+
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.UNREACHABLE);
+    });
+
+    it('does not send what the caller has built but not sent yet', async () => {
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml()));
+      const printer = new EposHttpPrinter('printer.example.com');
+
+      printer.addText('todavia no va\n');
+      await printer.connect();
+
+      const [, init] = vi.mocked(fetch).mock.calls[0];
+      expect(String((init as RequestInit).body)).not.toContain('todavia no va');
+      expect(printer.getBody()).toContain('todavia no va');
+    });
   });
 
   it('send() resolves with the parsed response for a print job', async () => {

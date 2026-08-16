@@ -6,6 +6,11 @@
 export { EposHttpPrinter } from "./components/EposHttpPrinter";
 export type { EposHttpPrinterOptions } from "./components/EposHttpPrinter";
 export type { PrintServiceResponse } from "./builders/httpTransport";
+// What connect() and a failed print reject with, and the causes it sorts them
+// into, so an app can branch on `code` instead of matching messages.
+export { PrintServiceError } from "./builders/httpTransport";
+export { PRINT_SERVICE_ERRORS } from "./constants/connection";
+export type { PrintServiceErrorCode } from "./constants/connection";
 export { decodePrinterStatus } from "./builders/printerStatus";
 export type { PrinterStatus, PaperState } from "./builders/printerStatus";
 export type {

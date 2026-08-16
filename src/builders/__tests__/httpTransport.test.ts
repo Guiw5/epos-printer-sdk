@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildSoapEnvelope, postPrintRequest, PrintServiceError } from '../httpTransport';
+import { PRINT_SERVICE_ERRORS } from '../../constants/connection';
 
 function fakeResponse(status: number, body: string): Response {
   return {
@@ -91,6 +92,45 @@ describe('postPrintRequest', () => {
     const error = await postPrintRequest('https://printer.example', '<soap/>', 5000).catch((e) => e);
     expect(error).toBeInstanceOf(PrintServiceError);
     expect(error.status).toBe(0);
+  });
+
+  // A rejected fetch says nothing about who rejected it, so the transport is
+  // the only place that still knows whether the abort was its own timeout.
+  describe('the cause it classifies the failure into', () => {
+    it('is UNREACHABLE when fetch rejects on its own', async () => {
+      vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
+
+      const error = await postPrintRequest('https://printer.example', '<soap/>', 5000).catch((e) => e);
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.UNREACHABLE);
+    });
+
+    it('is TIMEOUT when nothing answers before the deadline', async () => {
+      vi.mocked(fetch).mockImplementation((_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        })
+      );
+
+      const error = await postPrintRequest('https://printer.example', '<soap/>', 20).catch((e) => e);
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.TIMEOUT);
+    });
+
+    it('is ERROR when something answers with something else', async () => {
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(500, 'Internal Server Error'));
+
+      const error = await postPrintRequest('https://printer.example', '<soap/>', 5000).catch((e) => e);
+      expect(error.code).toBe(PRINT_SERVICE_ERRORS.ERROR);
+    });
+
+    // `https:///cgi-bin/...`, which is what an empty printer address builds:
+    // URL accepts it and promotes the first path segment to hostname.
+    it('is ERROR_PARAMETER for an address that is not requestable, and no request is made', async () => {
+      for (const address of ['', 'printer.example', 'https:///cgi-bin/epos/service.cgi']) {
+        const error = await postPrintRequest(address, '<soap/>', 5000).catch((e) => e);
+        expect({ address, code: error.code }).toEqual({ address, code: PRINT_SERVICE_ERRORS.ERROR_PARAMETER });
+      }
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('per-endpoint serialization', () => {

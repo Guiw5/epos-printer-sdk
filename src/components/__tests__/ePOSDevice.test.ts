@@ -29,13 +29,13 @@ describe.skipIf(!process.env.PRINTER_ADDRESS)('ePOSDevice Integration', () => {
 
   it('connect to printer web service - error', async () => {
     // Deliberately unreachable target, distinct from the success case above.
-    // A name that doesn't resolve reports TIMEOUT, not ERROR_PARAMETER: the
-    // address is a perfectly good URL, there is just nothing behind it.
+    // A name that doesn't resolve reports UNREACHABLE, not ERROR_PARAMETER:
+    // the address is a perfectly good URL, the request just never got out.
     const testAddress = 'unreachable.invalid';
     const testPort = parseInt(process.env.PRINTER_PORT || '8043');
 
     const result = await device.connect(testAddress, testPort, { eposprint: true });
-    expect(result).toBe(RESULTS.TIMEOUT);
+    expect(result).toBe(RESULTS.UNREACHABLE);
     expect(device.isConnected()).toBe(false);
   });
 

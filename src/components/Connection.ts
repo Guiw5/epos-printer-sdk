@@ -1,5 +1,6 @@
 import type { LegacySocket } from "../types";
 import { ERRORS, IF_EPOSPRINT, IF_EPOSDISPLAY, RESULTS, IF_EPOSDEVICE, IF_ALL, CONNECT } from "../constants/connection";
+import { isRequestableUrl } from "../builders/httpTransport";
 import type { ePosDeviceMessage } from "./ePosDeviceMessage";
 
 export class Connection {
@@ -54,7 +55,11 @@ export class Connection {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 5000);
 
     try {
       const res = await fetch(url, {
@@ -73,11 +78,11 @@ export class Connection {
       console.error('probe error', res.status);
       return RESULTS.ERROR;
     } catch (e) {
-      // The abort above, a name that doesn't resolve and a refused connection
-      // all arrive here as a rejection, and all three mean the same thing to
-      // whoever is looking at the printer: nothing answered.
+      // Waiting the whole timeout and never getting out of the door are
+      // different problems, and the abort above is the only way to tell them
+      // apart: everything else arrives here as the same rejection.
       console.error(e);
-      return RESULTS.TIMEOUT;
+      return timedOut ? RESULTS.TIMEOUT : RESULTS.UNREACHABLE;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -95,9 +100,6 @@ export class Connection {
   // time: connect() needs to know *why* the interface is unusable, and nobody
   // ever read the milliseconds.
   public async probeWebServiceIF({ display }: { display?: boolean } = {}): Promise<string> {
-    // An empty address still builds a parseable URL ("https:///cgi-bin/..."),
-    // whose host would be the first path segment, so it has to be rejected
-    // here rather than left to isRequestableUrl().
     if (!this.address) {
       return ERRORS.ERROR_PARAMETER;
     }
@@ -202,7 +204,7 @@ export class Connection {
     }
 
     if (type === IF_EPOSDEVICE) {
-      let result = ERRORS.ERROR_PARAMETER;
+      let result: string = ERRORS.ERROR_PARAMETER;
       if (this.usableIF & IF_ALL) {
         result = this.protocol === 'http' ? RESULTS.OK : RESULTS.SSL_CONNECT_OK;
       }
@@ -218,19 +220,5 @@ export class Connection {
       }
       this.callback = null;
     }
-  }
-}
-
-/**
- * An address that can't be turned into a URL with a host (an empty printer
- * address is the usual way in) is a bad argument, not an unreachable printer,
- * and `fetch` would either throw for the wrong reason or, for `https:///path`,
- * quietly request a host named after the first path segment.
- */
-function isRequestableUrl(url: string): boolean {
-  try {
-    return new URL(url).hostname.length > 0;
-  } catch {
-    return false;
   }
 }

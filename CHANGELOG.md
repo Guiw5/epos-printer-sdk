@@ -8,6 +8,80 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
+## [0.5.0], Unreleased
+
+0.4.0 taught the probe behind `ePOSDevice.connect()` to say *why* a connection
+failed. `EposHttpPrinter`, the class the README recommends and the one apps
+actually use, never got the message: it threw a bare `Error` with nothing on
+it. This release gives the whole package **one** vocabulary for that answer,
+reported the same way by the probe, by `ePOSDevice.connect()` and by
+`PrintServiceError.code`.
+
+### Added
+
+- **`PrintServiceError` carries a `code`**, and is exported from both entry
+  points together with `PRINT_SERVICE_ERRORS` and the `PrintServiceErrorCode`
+  type, so a caller can `switch` on the cause instead of matching message
+  strings: `TIMEOUT` (nothing answered before the timeout ran out),
+  `UNREACHABLE` (the request never got out: a name that doesn't resolve, a
+  refused connection, TLS, CORS), `ERROR` (something answered, but not the ePOS
+  service) and `ERROR_PARAMETER` (the address isn't a requestable URL). All
+  four come from `CONNECT_RESULTS`, not from a second list: a code means the
+  same thing whichever path produced it. Measured against a real installation,
+  both paths now agree: a dead address on the LAN costs the full timeout and
+  reports `TIMEOUT`, a host whose name doesn't resolve fails in ~100 ms and
+  reports `UNREACHABLE`, and both used to arrive as the same message.
+
+- **`UNREACHABLE` in `CONNECT_RESULTS`.** The probe used to fold its own abort,
+  a name that doesn't resolve and a refused connection into `TIMEOUT`, on the
+  grounds that for the socket path they all mean "nothing here". They do not
+  mean the same thing to whoever has to go and look at the printer, and the
+  abort is the only way to tell them apart: the probe remembers it now, the
+  same way the HTTP transport does.
+
+### Fixed
+
+- **`EposHttpPrinter.connect()` says why it failed.** It went through `send()`,
+  which reports an unreachable printer as an `ASB_NO_RESPONSE` status instead
+  of failing (that is the vendor's polling behaviour, and it stays), so the
+  transport's error was already gone by the time `connect()` read the status
+  and threw a bare `new Error('No se pudo conectar…')` of its own: no code, no
+  HTTP status, nothing to branch on. It now issues its own status query through
+  the transport and lets the classified error out.
+- **The transport no longer forgets who aborted the request.** A rejected
+  `fetch` looks the same whoever caused it, and a browser will say no more than
+  "Failed to fetch"; the abort our own timer fires is remembered now, which is
+  what separates `TIMEOUT` from `UNREACHABLE`.
+- **An unusable address fails as `ERROR_PARAMETER` instead of going out.**
+  `https:///cgi-bin/...`, which is what an empty printer host builds, parses
+  without complaint and promotes `cgi-bin` to hostname, so the request left for
+  a machine named after a path segment. The URL check `Connection` already had
+  moved into the transport, one definition serving both paths.
+- **`connect()` no longer sends what you have built but not sent yet.** It went
+  through `send()`, which since 0.3.0 takes ownership of the builder buffer, so
+  connecting after composing a job printed it.
+
+### Changed
+
+- **BREAKING** `PrintServiceError.message` is the cause in Spanish, ready to
+  show, where it used to be `ePOS print service error (status N)`. The raw
+  detail stays in `status` / `responseText`, and `name` is now
+  `'PrintServiceError'`. `connect()`'s rejection is one of these instead of a
+  bare `Error`, but it is still an `Error` with a Spanish `message`, so
+  `catch (e) { e.message }` is unaffected.
+- **BREAKING** A request to an address that isn't a requestable URL rejects
+  before it reaches `fetch`. This only matters for a custom
+  `EposHttpPrinterOptions.fetch` driven by something that isn't a URL; the
+  simulator (`new EposHttpPrinter('demo', { fetch: sim.fetch })`) builds a real
+  one and is unaffected.
+- Sizes, reproduce with `pnpm size`. The classification, the messages and the
+  shared vocabulary module (which the HTTP path did not import before) cost:
+
+  | import | 0.4.0 eager | 0.5.0 eager |
+  | --- | --- | --- |
+  | `EposHttpPrinter` from `epos-printer-sdk/http` | 8.60 kB | 9.53 kB |
+  | `ePOSDevice` from `epos-printer-sdk` | 18.51 kB | 19.12 kB |
+
 ## [0.4.0], 2026-08-16
 
 Three things that only show up once the library is in production: a connection

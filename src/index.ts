@@ -26,6 +26,7 @@ export type { Printer } from "./devices/Printer";
 export type { DeviceTerminal } from "./devices/DeviceTerminal";
 export type { EposHttpPrinterOptions } from "./components/EposHttpPrinter";
 export type { PrintServiceResponse } from "./builders/httpTransport";
+export { PrintServiceError } from "./builders/httpTransport";
 export type { IDevice, DeviceType } from "./types";
 export type { CAT } from "./devices/CAT";
 export type { CashChanger } from "./devices/CashChanger";
@@ -48,6 +49,7 @@ export * from "./constants/status";
 export {
   RESULTS as CONNECT_RESULTS,
   ERRORS as CONNECTION_ERRORS,
+  PRINT_SERVICE_ERRORS,
   ERROR_SYSTEM,
   ERROR_PARAMETER,
   ERROR_TIMEOUT,
@@ -59,3 +61,4 @@ export {
   DISCONNECT,
   RECONNECTING,
 } from "./constants/connection";
+export type { PrintServiceErrorCode } from "./constants/connection";

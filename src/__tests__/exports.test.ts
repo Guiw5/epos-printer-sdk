@@ -107,6 +107,22 @@ describe('package entry points', () => {
     expect(root.IFPORT_EPOSDEVICE).toBe(8008);
   });
 
+  it('both entry points export the error a failed request rejects with, and the causes it sorts them into', () => {
+    for (const entry of [root, http]) {
+      expect(entry.PRINT_SERVICE_ERRORS).toEqual({
+        TIMEOUT: 'TIMEOUT',
+        UNREACHABLE: 'UNREACHABLE',
+        ERROR: 'ERROR',
+        ERROR_PARAMETER: 'ERROR_PARAMETER',
+      });
+      expect(new entry.PrintServiceError(0, '')).toBeInstanceOf(Error);
+    }
+    // Three of the four are the strings the socket path already reports.
+    expect(root.PRINT_SERVICE_ERRORS.TIMEOUT).toBe(root.CONNECT_RESULTS.TIMEOUT);
+    expect(root.PRINT_SERVICE_ERRORS.ERROR).toBe(root.CONNECT_RESULTS.ERROR);
+    expect(root.PRINT_SERVICE_ERRORS.ERROR_PARAMETER).toBe(root.CONNECTION_ERRORS.ERROR_PARAMETER);
+  });
+
   it('both entry points export the ASB status bits', () => {
     expect(root.ASB_COVER_OPEN).toBe(32);
     expect(http.ASB_RECEIPT_END).toBe(524288);

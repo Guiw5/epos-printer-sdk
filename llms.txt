@@ -22,6 +22,12 @@ Key facts an assistant should know before writing code with this library:
   `{ success, code, status, battery, printjobid }`. It rejects only when the
   printer is unreachable; a printer that answers but refuses the job resolves
   with `success: false` and a diagnostic `code`.
+- **A rejection says why.** `connect()` and a failed `send()` reject with a
+  `PrintServiceError` (a real `Error`) carrying `code`: `'TIMEOUT'` (nothing
+  answered in time), `'UNREACHABLE'` (the request never got out: DNS, refused,
+  CORS), `'ERROR'` (answered, but not the ePOS service) or `'ERROR_PARAMETER'`
+  (the address isn't a requestable URL), plus `status`, `responseText`, and a
+  Spanish `message` ready to show. Branch on `code`, never on the message.
 - **Default port is 443 (https).** Pass `{ port: 80 }` for plain HTTP. Browsers
   block HTTP calls from HTTPS pages, and printers serve self-signed certificates.
 - **There is a simulator.** `epos-printer-sdk/simulator` exports
@@ -74,7 +80,12 @@ if (!result.success) console.error(result.code);
 
 - `new EposHttpPrinter(host, { port?, deviceId?, timeout? })`, HTTP client.
 - `printer.send()`, sends the built job, or queries status if nothing was built.
-- `printer.connect()`, optional reachability check; throws if unreachable.
+- `printer.connect()`, optional reachability check; rejects with a
+  `PrintServiceError` whose `code` classifies the failure. It is its own status
+  query, so it never sends what the builder holds.
+- `PrintServiceError` and `PRINT_SERVICE_ERRORS` (`TIMEOUT`, `UNREACHABLE`,
+  `ERROR`, `ERROR_PARAMETER`) are exported from both entry points, with the
+  `PrintServiceErrorCode` type.
 - `printer.print(canvas, printjobid?)`, renders and prints an HTMLCanvasElement.
 - `printer.getPrintJobStatus(printjobid)`, status of a previously sent job.
 - `printer.recover()` / `printer.reset()`, clear a recoverable printer error.
@@ -110,6 +121,13 @@ if (!result.success) console.error(result.code);
 - `ePOSDevice` (full entry only) is the session and device-management layer, not a transport: it runs over HTTP or the socket and decides which (`{ eposprint: true }` forces HTTP). Nothing extends it; the builder chain is separate. API: `connect(address, port, { eposprint? })`, `createDevice(deviceId, deviceType)` resolving to a `Printer`/`CAT`/`CashChanger`/`DeviceTerminal`, `disconnect()`. `connect()` resolves with `'OK'` or with the reason it failed: `'TIMEOUT'` (nothing answered: printer off, unplugged, wrong address), `'ERROR'` (something answered, but not the ePOS service) or `'ERROR_PARAMETER'` (the address is not a usable URL).
 
 ## Error codes
+
+Transport failures reject with a `PrintServiceError` whose `code` is `TIMEOUT`
+(printer off or dead address, costs the full timeout), `UNREACHABLE` (nothing
+on the network claims the address, fails immediately), `ERROR` (something
+answered, but not the ePOS service) or `ERROR_PARAMETER` (unusable address).
+The first, third and fourth are the same strings `ePOSDevice.connect()`
+resolves with; `UNREACHABLE` is the distinction only the HTTP path can make.
 
 `send()` resolves with `success: false` and one of these in `code`:
 
