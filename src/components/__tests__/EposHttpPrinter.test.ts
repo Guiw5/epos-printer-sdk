@@ -182,4 +182,85 @@ describe('EposHttpPrinter', () => {
     await expect(printer.getPrintJobStatus('job_7-A')).resolves.toBeDefined();
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+  // Monitoring used to live only on Printer (the class ePOSDevice.createDevice()
+  // hands back), so EposHttpPrinter declared the eleven status callbacks with
+  // nothing but open()/close() to drive them.
+  describe('status monitoring', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('startMonitor() polls the printer and reports the reading through onstatuschange', async () => {
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ status: '2' })));
+      const printer = new EposHttpPrinter('printer.example.com');
+      const seen: number[] = [];
+      printer.onstatuschange = (status) => seen.push(status);
+
+      printer.startMonitor();
+      await vi.waitFor(() => expect(seen).toEqual([2]));
+
+      printer.stopMonitor();
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps polling on `interval`, and stopMonitor() ends it', async () => {
+      vi.useFakeTimers();
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ status: '2' })));
+      const printer = new EposHttpPrinter('printer.example.com');
+      printer.interval = 1000;
+
+      printer.startMonitor();
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThanOrEqual(3);
+
+      printer.stopMonitor();
+      const afterStop = vi.mocked(fetch).mock.calls.length;
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(afterStop);
+    });
+
+    it('fires the paper and cover callbacks as the ASB bits change', async () => {
+      const printer = new EposHttpPrinter('printer.example.com');
+      const fired: string[] = [];
+      printer.onpaperend = () => fired.push('paperend');
+      printer.oncoveropen = () => fired.push('coveropen');
+      printer.onpaperok = () => fired.push('paperok');
+      printer.oncoverok = () => fired.push('coverok');
+
+      // ASB_RECEIPT_END (524288) | ASB_COVER_OPEN (32), then a clean reading.
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ status: '524320' })));
+      printer.startMonitor();
+      await vi.waitFor(() => expect(fired).toEqual(['coveropen', 'paperend']));
+
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ status: '2' })));
+      printer.interval = 1000;
+      await vi.waitFor(() => expect(fired).toEqual(['coveropen', 'paperend', 'coverok', 'paperok']), { timeout: 5000 });
+      printer.stopMonitor();
+    });
+
+    it('reports ASB_NO_RESPONSE instead of throwing when the printer stops answering', async () => {
+      vi.mocked(fetch).mockRejectedValue(new TypeError('fetch failed'));
+      const printer = new EposHttpPrinter('printer.example.com');
+      const seen: number[] = [];
+      printer.onpoweroff = () => seen.push(printer.status);
+
+      printer.startMonitor();
+      await vi.waitFor(() => expect(seen).toEqual([printer.ASB_NO_RESPONSE]));
+      printer.stopMonitor();
+    });
+
+    it('the poll never prints what the caller has built but not sent yet', async () => {
+      vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml({ status: '2' })));
+      const printer = new EposHttpPrinter('printer.example.com');
+
+      printer.startMonitor();
+      printer.addText('todavia no va\n');
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      printer.stopMonitor();
+
+      const bodies = vi.mocked(fetch).mock.calls.map(([, init]) => String((init as RequestInit).body));
+      expect(bodies.every((body) => !body.includes('todavia no va'))).toBe(true);
+      expect(printer.getBody()).toContain('todavia no va');
+    });
+  });
 });

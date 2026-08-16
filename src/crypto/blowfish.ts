@@ -266,7 +266,7 @@ const blowfish: Blowfish = (() => {
 
     mkIV(): string {
       function adapterMathRandom(): number {
-        const crypto: Crypto = window.crypto || (window as any).msCrypto;
+        const crypto: Crypto = window.crypto || (window as Window & { msCrypto?: Crypto }).msCrypto!;
         let rand: number | undefined;
         try {
           rand = crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;

@@ -52,7 +52,7 @@ una API íntegramente basada en callbacks. Este paquete es un reemplazo moderno.
   automáticamente, porque el hardware igual las procesa de a una. Diez trabajos
   simultáneos con timeout de 2s contra una TM-T88V real: 4/10 sin esto, 10/10
   con esto.
-- **Verificada, no solo escrita.** 71 tests unitarios de la librería y 18 de la
+- **Verificada, no solo escrita.** 106 tests unitarios de la librería y 18 de la
   demo, más tests de integración opcionales que corren contra una impresora
   física.
 
@@ -212,9 +212,13 @@ printer.onstatuschange = () => {
 printer.onpaperend = () => alert('¡Se acabó el papel!');
 printer.oncoveropen = () => alert('La tapa está abierta');
 
-printer.open();   // arranca el polling
-printer.close();  // lo detiene
+printer.startMonitor();  // arranca el polling
+printer.stopMonitor();   // lo detiene
 ```
+
+`open()` / `close()` son lo mismo con el otro nombre del vendor. Los dos pares
+están en `EposHttpPrinter` y en el `Printer` que devuelve
+`ePOSDevice.createDevice()`: el polling es una sola implementación, compartida.
 
 ### Cajón de dinero
 
@@ -311,7 +315,8 @@ sobre él, por eso no necesita ninguna impresora en la red.
 | `print(canvas, printjobid?)` | `Promise<PrintServiceResponse>` | Renderiza e imprime un canvas |
 | `getPrintJobStatus(id)` | `Promise<PrintServiceResponse>` | Estado de un trabajo previo |
 | `recover()` / `reset()` | `Promise<PrintServiceResponse>` | Limpia un error recuperable |
-| `open()` / `close()` | `void` | Arranca/detiene el polling de estado |
+| `startMonitor()` / `stopMonitor()` | `boolean` | Arranca/detiene el polling de estado |
+| `open()` / `close()` | `void` | El mismo par, con el otro nombre del vendor |
 
 **Métodos del builder** (todos encadenables):
 
@@ -333,6 +338,24 @@ sobre él, por eso no necesita ninguna impresora en la red.
 `onpaperok`, `ondraweropen`, `ondrawerclosed`, `onbatterylow`, `onbatteryok`,
 `onreceive`, `onerror`.
 
+## Constantes
+
+Todas las constantes se exportan desde el paquete, y no importar ninguna no
+cuesta nada:
+
+```ts
+import { CUT_NO_FEED, ALIGN_CENTER, ASB_COVER_OPEN } from 'epos-printer-sdk/http';
+import { TYPES, DEVICE_TYPE_PRINTER, CONNECT_RESULTS } from 'epos-printer-sdk';
+```
+
+Las clases que instanciás vos (`EposHttpPrinter`, `ePOSDevice`) *además* las
+llevan como constantes de instancia, porque así las escribe la documentación de
+Epson: `pos.addCut(pos.CUT_FEED)`, `dev.createDevice(id, dev.DEVICE_TYPE_PRINTER)`.
+La regla es que las dos formas existan con el mismo nombre y el mismo valor, y
+hay un test que lo verifica. Los dispositivos que nunca instanciás a mano
+(`CAT`, `CashChanger`, que te entrega `createDevice()`) mantienen sus constantes
+solo en la instancia.
+
 ## Tamaño del bundle
 
 Dos entry points, para que quien solo imprime por HTTP nunca arrastre el
@@ -340,8 +363,8 @@ transporte por socket:
 
 | Import | Contenido | Tamaño (gzip) |
 |---|---|---|
-| `epos-printer-sdk/http` | `EposHttpPrinter`, `decodePrinterStatus`, tipos | **~7 KB** |
-| `epos-printer-sdk` | Todo, incluido `ePOSDevice` + gestión de dispositivos | ~30 KB (+31 KB de `socket.io-client`, solo si lo instalás, ver abajo) |
+| `epos-printer-sdk/http` | `EposHttpPrinter`, `decodePrinterStatus`, tipos | **8,6 KB** |
+| `epos-printer-sdk` | Todo, incluido `ePOSDevice` + gestión de dispositivos | 18,5 KB eager, 32 KB más a demanda (+16 KB de `socket.io-client`, solo si lo instalás, ver abajo) |
 
 El `socket.io-client@0.8.7` que necesita el transporte por socket es una
 **peer dependency opcional**: no se instala por defecto, porque arrastra
@@ -394,11 +417,16 @@ import { ePOSDevice } from 'epos-printer-sdk';
 
 const epos = new ePOSDevice();
 const result = await epos.connect('192.168.1.100', 8008);
-if (result !== 'OK') throw new Error(result);
+if (result !== 'OK') throw new Error(result); // 'TIMEOUT' | 'ERROR' | 'ERROR_PARAMETER'
 
 const printer = await epos.createDevice('local_printer', 'type_printer');
 await printer.addText('Hola\n').addCut('feed').send();
 ```
+
+`connect()` dice *por qué* falló: `TIMEOUT` cuando no contestó nadie (impresora
+apagada, desenchufada, dirección equivocada), `ERROR` cuando algo contestó pero
+no es el servicio ePOS, y `ERROR_PARAMETER` cuando la dirección no es una URL
+usable. Compará contra `CONNECT_RESULTS`, no contra strings sueltos.
 
 Ojo que la regla de puerto difiere de `EposHttpPrinter`: acá solo `8008`
 selecciona HTTP plano, cualquier otro (incluido `80`) se toma como HTTPS. Es el

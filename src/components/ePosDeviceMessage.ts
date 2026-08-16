@@ -22,6 +22,13 @@ export type MsgData = {
   member_id: string;
   code: string;
 }
+/**
+ * A device request payload: the `type` that names the operation, plus whatever
+ * that operation carries. Devices build their own shapes (CAT authorizations,
+ * CashChanger deposits, print jobs), and the service echoes back shapes the
+ * vendor never documented outside the Japanese CAT protocol.
+ */
+export type DeviceRequest = { type: string;[key: string]: unknown };
 export type Data = MsgData | string;
 
 export class ePosDeviceMessage {
@@ -36,8 +43,8 @@ export class ePosDeviceMessage {
 
   constructor() {}
 
-  public toTransmissionForm(): any[] | null {
-    let message: any[] | null = null;
+  public toTransmissionForm(): unknown[] | null {
+    let message: unknown[] | null = null;
     switch (this.request) {
       case REQUEST.PUBKEY:
       case REQUEST.ADMININFO:

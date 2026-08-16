@@ -36,7 +36,7 @@ export type SendParams = { address: string, request: string, printjobid: string,
 //CanvasPrint
 export type PrintParams = { canvas: HTMLCanvasElement, cut: boolean, mode: Mode, printjobid?: string }
 
-export type DeviceConstructor = new (...args: any[]) => IDevice;
+export type DeviceConstructor = new (...args: unknown[]) => IDevice;
 
 export type IDevice =  Printer | CAT | DeviceTerminal | CashChanger;
 

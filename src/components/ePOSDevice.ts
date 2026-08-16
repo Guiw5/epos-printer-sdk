@@ -48,6 +48,8 @@ interface ConnectionOptions {
   eposprint?: boolean;
 }
 
+type DeviceDataHandler = (data: MsgData, sequence: number) => void;
+
 export class ePOSDevice {
   /**
    * Instance constants, vendor parity: the canonical call is
@@ -109,7 +111,7 @@ export class ePOSDevice {
   public onreconnect?: () => void;
   public onreconnecting?: () => void;
   public ondisconnect?: () => void;
-  public onerror?: (sequence: string, deviceId: string, error: string, data: any) => void;
+  public onerror?: (sequence: string, deviceId: string, error: string, data: unknown) => void;
 
   constructor() {
     this.conection = new Connection();
@@ -137,6 +139,12 @@ export class ePOSDevice {
     return this.eposprint;
   }
 
+  /**
+   * Opens the session and resolves with `RESULT_OK` when the printer is
+   * reachable, or with the reason it isn't: `TIMEOUT` (nothing answered: off,
+   * unplugged, wrong address), `ERROR` (something answered, but not the ePOS
+   * service) or `ERROR_PARAMETER` (the address isn't usable as a URL).
+   */
   async connect(address: string, port: number, options?: ConnectionOptions): Promise<string> {
     try {
       if (
@@ -151,9 +159,11 @@ export class ePOSDevice {
       this.conection.setAddress(protocol, address, port);
       this.eposprint = options?.eposprint ?? false;
 
+      let failure: string;
+
       if (this.eposprint) {
         console.log('connecting web service');
-        await this.conection.probeWebServiceIF();
+        failure = await this.conection.probeWebServiceIF();
         console.log('connected web service', this.conection.isUsablePrintIF());
       } else {
         console.log('connecting socket');
@@ -161,8 +171,8 @@ export class ePOSDevice {
         // asynchronously over several message round-trips; registCallback()
         // is invoked by registIFAccessResult() once that exchange settles
         // (success or failure), which is what this await is waiting on.
-        await new Promise<void>((resolve) => {
-          this.conection.registCallback(() => resolve());
+        failure = await new Promise<string>((resolve) => {
+          this.conection.registCallback(resolve);
           // If the socket transport can't even start (e.g. the legacy
           // socket.io-client fails to load in this environment), degrade the
           // same way a socket error does: probe the HTTP service and fall
@@ -176,10 +186,10 @@ export class ePOSDevice {
       if (this.conection.isUsablePrintIF()) {
         return RESULT_OK;
       } else {
-        return CONNECTION_ERRORS.ERROR_PARAMETER;
+        return failure;
       }
     } catch {
-      return CONNECTION_ERRORS.ERROR_PARAMETER;
+      return RESULTS.ERROR;
     }
   }
 
@@ -273,8 +283,8 @@ export class ePOSDevice {
           }
         });
       }
-    } catch (e: any) {
-      const message = e.message || DEVICE_ERRORS.ERROR_DEVICE_OPEN;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : DEVICE_ERRORS.ERROR_DEVICE_OPEN;
       if (callback != null) {
         callback(null, message);
       }
@@ -303,8 +313,8 @@ export class ePOSDevice {
         this.deviceIntances.remove(element.deviceId);
         callback(RESULT_OK);
       }
-    } catch (e: any) {
-      const message = e.message || DEVICE_ERRORS.ERROR_DEVICE_CLOSE;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : DEVICE_ERRORS.ERROR_DEVICE_CLOSE;
       if (callback != null) {
           callback(message);
       }
@@ -319,7 +329,7 @@ export class ePOSDevice {
     return this.location;
   }
 
-  sendOfscXml(xml: string, timeout: number, crypto: boolean, callback: (result: any) => void): void {
+  sendOfscXml(xml: string, timeout: number, crypto: boolean, callback: (result: string) => void): void {
     this.ofsc.send(xml, timeout, crypto, callback);
   }
 
@@ -396,7 +406,7 @@ export class ePOSDevice {
       this.handleSocketError();
     });
 
-    this.socket.on("message", (data: any) => {
+    this.socket.on("message", (data: unknown[]) => {
       this.handleSocketMessage(data);
     });
   }
@@ -417,7 +427,7 @@ export class ePOSDevice {
     }
   }
 
-  private handleSocketMessage(data: any): void {
+  private handleSocketMessage(data: unknown[]): void {
     try {
       const eposmsg = MessageFactory.parseRequestMessage(data);
       if (eposmsg == null) {
@@ -764,16 +774,19 @@ export class ePOSDevice {
         processedData = MessageFactory.decrypt(data as string);
       }
 
-      const deviceObject = deviceInstance.deviceObject;
+      // The device object answers to a method named after the payload's own
+      // `type`, which is only known at runtime: every device declares its
+      // handlers as `client_<type>`, so the lookup is the dispatch table.
+      const deviceObject = deviceInstance.deviceObject as unknown as Record<string, DeviceDataHandler>;
       const method = `client_${processedData.type}`;
 
       try {
         if ('client_onreceive' in deviceObject) {
-          (deviceObject as any).client_onreceive(processedData, sequence);
+          deviceObject.client_onreceive(processedData, sequence);
         } else if (method in deviceObject) {
-          (deviceObject as any)[method](processedData, sequence);
+          deviceObject[method](processedData, sequence);
         } else if (processedData.type in deviceObject) {
-          (deviceObject as any)[processedData.type](processedData, sequence);
+          deviceObject[processedData.type](processedData, sequence);
         }
       } catch {
         if (this.onerror != null) {
@@ -790,7 +803,7 @@ export class ePOSDevice {
   private procServiceData(eposmsg: ePosDeviceMessage): void {
     try {
       if (eposmsg.serviceId === "OFSC") {
-        (this.ofsc as any).notify(eposmsg);
+        this.ofsc.notify(eposmsg);
       }
     } catch {
       if (this.onerror != null) {

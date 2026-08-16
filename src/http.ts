@@ -12,6 +12,9 @@ export type {
   BarcodeType, Hri, Font, SymbolType, Level, Direction, LineStyle, Alignment,
 } from "./types";
 // Named constants for every enum-valued builder attribute (FONT_A, ALIGN_CENTER,
-// CUT_FEED, HALFTONE_DITHER, ...). Tree-shakeable: importing none costs nothing.
-// The device-management constants stay out, this entry has no ePOSDevice.
+// CUT_FEED, HALFTONE_DITHER, ...) and for the printer status bits EposHttpPrinter
+// reports (ASB_COVER_OPEN, ASB_RECEIPT_END, ...). Tree-shakeable: importing none
+// costs nothing. The device-management constants stay out, this entry has no
+// ePOSDevice.
 export * from "./constants/eposbuilder";
+export * from "./constants/status";

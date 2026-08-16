@@ -34,13 +34,25 @@ export class Connection {
     return this.address;
   }
 
+  /**
+   * Probes one web service endpoint and reports which of the three things
+   * happened: it answered (`OK`), it answered with something unusable
+   * (`ERROR`), or nothing answered in time (`TIMEOUT`). An address that isn't
+   * a requestable URL is `ERROR_PARAMETER`, the only failure that really is
+   * about the arguments.
+   *
+   * Never rejects, matching the vendor SDK's callback-style probe(), which
+   * always calls back with a result code regardless of outcome. Callers like
+   * probeWebServiceIF() and handleSocketError() depend on that to always
+   * proceed to registIFAccessResult(); a reject here left connect() hanging
+   * forever whenever the probe failed (and left an unhandled rejection
+   * besides).
+   */
   public async probe(url: string, postdata: string): Promise<string> {
-    // Never rejects, matches the vendor SDK's callback-style probe(), which
-    // always calls back with a result code (OK/ERROR_PARAMETER/ERROR_TIMEOUT)
-    // regardless of outcome. Callers like probeWebServiceIF() and
-    // handleSocketError() depend on that to always proceed to
-    // registIFAccessResult(); a reject here left connect() hanging forever
-    // whenever the probe failed (and left an unhandled rejection besides).
+    if (!isRequestableUrl(url)) {
+      return ERRORS.ERROR_PARAMETER;
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -59,13 +71,13 @@ export class Connection {
         return RESULTS.OK;
       }
       console.error('probe error', res.status);
-      return ERRORS.ERROR_PARAMETER;
+      return RESULTS.ERROR;
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') {
-        return ERRORS.ERROR_TIMEOUT;
-      }
+      // The abort above, a name that doesn't resolve and a refused connection
+      // all arrive here as a rejection, and all three mean the same thing to
+      // whoever is looking at the printer: nothing answered.
       console.error(e);
-      return ERRORS.ERROR_PARAMETER;
+      return RESULTS.TIMEOUT;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -78,10 +90,20 @@ export class Connection {
   // passes it, so isUsableDisplayIF() can never become true through this
   // path. Restore the always-both-in-parallel behavior if type_display
   // support is ever prioritized.
-  public async probeWebServiceIF({ display }: { display?: boolean } = {}): Promise<number> {
+  //
+  // Returns the print service's access result instead of the vendor's elapsed
+  // time: connect() needs to know *why* the interface is unusable, and nobody
+  // ever read the milliseconds.
+  public async probeWebServiceIF({ display }: { display?: boolean } = {}): Promise<string> {
+    // An empty address still builds a parseable URL ("https:///cgi-bin/..."),
+    // whose host would be the first path segment, so it has to be rejected
+    // here rather than left to isRequestableUrl().
+    if (!this.address) {
+      return ERRORS.ERROR_PARAMETER;
+    }
+
     console.log('probeWebServiceIF', this.getOrigin());
 
-    const startTime = Date.now();
     const printUrl = `${this.getOrigin()}/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000`;
     const printData = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><epos-print xmlns="http://www.epson-pos.com/schemas/2011/03/epos-print"></epos-print></s:Body></s:Envelope>`;
     const printResult = await this.probe(printUrl, printData);
@@ -94,8 +116,7 @@ export class Connection {
       this.registIFAccessResult(IF_EPOSDISPLAY, displayResult);
     }
 
-    return (Date.now() - startTime);
-
+    return printResult;
   }
 
   public setSocket(socket: LegacySocket): void {
@@ -197,5 +218,19 @@ export class Connection {
       }
       this.callback = null;
     }
+  }
+}
+
+/**
+ * An address that can't be turned into a URL with a host (an empty printer
+ * address is the usual way in) is a bad argument, not an unreachable printer,
+ * and `fetch` would either throw for the wrong reason or, for `https:///path`,
+ * quietly request a host named after the first path segment.
+ */
+function isRequestableUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.length > 0;
+  } catch {
+    return false;
   }
 }

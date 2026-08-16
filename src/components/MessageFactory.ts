@@ -1,4 +1,4 @@
-import { ePosDeviceMessage, Data, MsgData } from './ePosDeviceMessage';
+import { ePosDeviceMessage, Data, DeviceRequest, MsgData } from './ePosDeviceMessage';
 import type { ePosCrypto } from './ePosCrypto';
 import { REQUEST } from '../constants/eposmessage';
 
@@ -41,6 +41,10 @@ export const MessageFactory = {
     loaded = await loading;
   },
 
+  // The wire message is a positional array whose element types depend on the
+  // request in slot 0, so there is no single element type to declare: with
+  // `unknown[]` every read below would need its own cast back.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parseRequestMessage(message: any[]): ePosDeviceMessage | null {
     const eposmsg = new ePosDeviceMessage();
     eposmsg.request = message[0];
@@ -163,12 +167,12 @@ export const MessageFactory = {
     return eposmsg;
   },
 
-  getDeviceDataMessage(deviceId: string, data: Data, crypto?: boolean): ePosDeviceMessage {
+  getDeviceDataMessage(deviceId: string, data: Data | DeviceRequest, crypto?: boolean): ePosDeviceMessage {
     const eposmsg = new ePosDeviceMessage();
     eposmsg.request = REQUEST.DEVICEDATA;
     eposmsg.sequence = getNextSequence();
     eposmsg.deviceId = deviceId;
-    eposmsg.data = crypto ? requireCipher().bfEncrypt(JSON.stringify(data)) : data;
+    eposmsg.data = crypto ? requireCipher().bfEncrypt(JSON.stringify(data)) : data as Data;
     return eposmsg;
   },
 

@@ -2,13 +2,30 @@ import { SendParams } from '../types';
 import { ePOSBuilder } from './ePOSBuilder';
 import { validatePrintJobId } from './utils';
 import { buildSoapEnvelope, postPrintRequest, PrintServiceError, type FetchLike, type PrintServiceResponse } from './httpTransport';
+import * as STATUS from '../constants/status';
 
-type EventHandler = (event?: any, sq?: number) => void;
+// The status poll runs every few seconds; it must not inherit `timeout`, which
+// is the budget for a print job (5 minutes by default) and would pile up
+// queries the printer answered long ago.
+const MONITOR_TIMEOUT = 10000;
+
+/** What the printer answered a print request with. `sq` is the socket
+ * transport's sequence number, absent over HTTP. */
+export type ReceiveHandler = (response: PrintServiceResponse, sq?: number) => void;
+
+/** The request itself failed: no reply, or one that couldn't be parsed. */
+export type ErrorHandler = (error: { status: number; responseText: string }, sq?: number) => void;
+
+/** A status/battery reading, as an ASB bit field (see the ASB_* constants). */
+export type StatusHandler = (value: number) => void;
+
+/** A transition with nothing to report beyond having happened. */
+export type EventHandler = () => void;
 
 interface ePOSEvents {
-  onreceive: EventHandler | null;
-  onerror: EventHandler | null;
-  onstatuschange: EventHandler | null;
+  onreceive: ReceiveHandler | null;
+  onerror: ErrorHandler | null;
+  onstatuschange: StatusHandler | null;
   ononline: EventHandler | null;
   onoffline: EventHandler | null;
   onpoweroff: EventHandler | null;
@@ -21,7 +38,7 @@ interface ePOSEvents {
   ondraweropen: EventHandler | null;
   onbatterylow: EventHandler | null;
   onbatteryok: EventHandler | null;
-  onbatterystatuschange: EventHandler | null;
+  onbatterystatuschange: StatusHandler | null;
 }
 
 export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
@@ -36,33 +53,40 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   intervalController: AbortController | null = null;
   fetchImpl?: FetchLike;
 
-  // ASB Constants
-  ASB_NO_RESPONSE = 1;
-  ASB_PRINT_SUCCESS = 2;
-  ASB_DRAWER_KICK = 4;
-  ASB_BATTERY_OFFLINE = 4;
-  ASB_OFF_LINE = 8;
-  ASB_COVER_OPEN = 32;
-  ASB_PAPER_FEED = 64;
-  ASB_WAIT_ON_LINE = 256;
-  ASB_PANEL_SWITCH = 512;
-  ASB_MECHANICAL_ERR = 1024;
-  ASB_AUTOCUTTER_ERR = 2048;
-  ASB_UNRECOVER_ERR = 8192;
-  ASB_AUTORECOVER_ERR = 16384;
-  ASB_RECEIPT_NEAR_END = 131072;
-  ASB_RECEIPT_END = 524288;
-  ASB_BUZZER = 16777216;
-  ASB_WAIT_REMOVE_LABEL = 16777216;
-  ASB_NO_LABEL = 67108864;
-  ASB_SPOOLER_IS_STOPPED = 2147483648;
-  DRAWER_OPEN_LEVEL_LOW = 0;
-  DRAWER_OPEN_LEVEL_HIGH = 1;
+  // ASB Constants, same values as the module-level `constants/status` exports.
+  ASB_NO_RESPONSE = STATUS.ASB_NO_RESPONSE;
+  ASB_PRINT_SUCCESS = STATUS.ASB_PRINT_SUCCESS;
+  ASB_DRAWER_KICK = STATUS.ASB_DRAWER_KICK;
+  ASB_BATTERY_OFFLINE = STATUS.ASB_BATTERY_OFFLINE;
+  ASB_OFF_LINE = STATUS.ASB_OFF_LINE;
+  ASB_COVER_OPEN = STATUS.ASB_COVER_OPEN;
+  ASB_PAPER_FEED = STATUS.ASB_PAPER_FEED;
+  ASB_WAIT_ON_LINE = STATUS.ASB_WAIT_ON_LINE;
+  ASB_PANEL_SWITCH = STATUS.ASB_PANEL_SWITCH;
+  ASB_MECHANICAL_ERR = STATUS.ASB_MECHANICAL_ERR;
+  ASB_AUTOCUTTER_ERR = STATUS.ASB_AUTOCUTTER_ERR;
+  ASB_UNRECOVER_ERR = STATUS.ASB_UNRECOVER_ERR;
+  ASB_AUTORECOVER_ERR = STATUS.ASB_AUTORECOVER_ERR;
+  ASB_RECEIPT_NEAR_END = STATUS.ASB_RECEIPT_NEAR_END;
+  ASB_RECEIPT_END = STATUS.ASB_RECEIPT_END;
+  ASB_BUZZER = STATUS.ASB_BUZZER;
+  ASB_WAIT_REMOVE_LABEL = STATUS.ASB_WAIT_REMOVE_LABEL;
+  ASB_NO_LABEL = STATUS.ASB_NO_LABEL;
+  ASB_SPOOLER_IS_STOPPED = STATUS.ASB_SPOOLER_IS_STOPPED;
+  DRAWER_OPEN_LEVEL_LOW = STATUS.DRAWER_OPEN_LEVEL_LOW;
+  DRAWER_OPEN_LEVEL_HIGH = STATUS.DRAWER_OPEN_LEVEL_HIGH;
+
+  /**
+   * What `startMonitor()` seeds `status` with so the first reading is reported
+   * in full: `fireStatusEvent` reads it as "nothing measured yet", so it has to
+   * be the sentinel that implementation checks (Printer overrides both).
+   */
+  protected monitorSeedStatus = 0;
 
   // Event Handlers
-  onreceive: EventHandler | null = null;
-  onerror: EventHandler | null = null;
-  onstatuschange: EventHandler | null = null;
+  onreceive: ReceiveHandler | null = null;
+  onerror: ErrorHandler | null = null;
+  onstatuschange: StatusHandler | null = null;
   ononline: EventHandler | null = null;
   onoffline: EventHandler | null = null;
   onpoweroff: EventHandler | null = null;
@@ -75,7 +99,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
   ondraweropen: EventHandler | null = null;
   onbatterylow: EventHandler | null = null;
   onbatteryok: EventHandler | null = null;
-  onbatterystatuschange: EventHandler | null = null;
+  onbatterystatuschange: StatusHandler | null = null;
 
   constructor(address: string) {
     super();
@@ -88,16 +112,33 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     this.drawerOpenLevel = 0;
   }
 
+  /** Vendor-named alias of {@link startMonitor}. */
   open(): void {
-    if (!this.enabled) {
-      this.enabled = true;
-      this.status = 0;
-      this.battery = 0;
-      void this.send();
-    }
+    this.startMonitor();
   }
 
+  /** Vendor-named alias of {@link stopMonitor}. */
   close(): void {
+    this.stopMonitor();
+  }
+
+  /**
+   * Starts polling the printer's status every `interval` ms, firing
+   * `onstatuschange` and the paper/cover/online/battery callbacks as the ASB
+   * bits change. Calling it while already monitoring does nothing.
+   */
+  startMonitor(): boolean {
+    if (!this.enabled) {
+      this.enabled = true;
+      this.status = this.monitorSeedStatus;
+      this.battery = 0;
+      void this.sendStartMonitorCommand();
+    }
+    return true;
+  }
+
+  /** Stops the poll, aborting the status query in flight. */
+  stopMonitor(): boolean {
     this.enabled = false;
     if (this.intervalid) {
       clearTimeout(this.intervalid);
@@ -107,6 +148,50 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       this.intervalController.abort();
       this.intervalController = null;
     }
+    return true;
+  }
+
+  /** Schedules the next status query. Runs at the end of each one. */
+  updateStatus(): void {
+    let delay = this.interval;
+    if (this.enabled) {
+      if (isNaN(delay) || delay < 1000) {
+        delay = 3000;
+      }
+      this.intervalid = setTimeout(() => {
+        this.intervalid = null;
+        if (this.enabled) {
+          void this.sendStartMonitorCommand();
+        }
+      }, delay);
+    }
+    this.intervalController = null;
+  }
+
+  /**
+   * One status query: an empty print request, which is what the ePOS-Print
+   * service answers with the ASB word. Deliberately not routed through
+   * `send()`, which would take ownership of whatever the caller has built and
+   * print it on the next tick.
+   */
+  protected async sendStartMonitorCommand(): Promise<void> {
+    const soap = buildSoapEnvelope(new ePOSBuilder().toString());
+    const controller = new AbortController();
+    this.intervalController = controller;
+
+    try {
+      const res = await postPrintRequest(this.address, soap, MONITOR_TIMEOUT, controller.signal, this.fetchImpl);
+      this.fireMonitorStatus(res.status, res.battery);
+    } catch {
+      this.fireMonitorStatus(this.ASB_NO_RESPONSE, 0);
+    } finally {
+      this.updateStatus();
+    }
+  }
+
+  /** Printer keeps its own vendor-faithful copy, see `monitorSeedStatus`. */
+  protected fireMonitorStatus(status: number, battery: number): void {
+    fireStatusEvent(this, status, battery);
   }
 
   getPrintJobStatus(printjobid: string): Promise<PrintServiceResponse> {
@@ -217,7 +302,7 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
    */
   async send(...params: [string?, string?, string?]): Promise<PrintServiceResponse> {
     const { address, request, printjobid, isPrintRequest } = this.getSendParams(params);
-    const isMonitoring = !isPrintRequest;
+    const isStatusQuery = !isPrintRequest;
     if (isPrintRequest) {
       // send() takes ownership of the builder state: the body is already
       // consumed by now, and force applies to the job it was set for, not
@@ -226,13 +311,8 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
     }
     const soap = buildSoapEnvelope(request, printjobid);
 
-    const controller = new AbortController();
-    if (isMonitoring) {
-      this.intervalController = controller;
-    }
-
     try {
-      let res = await postPrintRequest(address, soap, this.timeout, controller.signal, this.fetchImpl);
+      let res = await postPrintRequest(address, soap, this.timeout, undefined, this.fetchImpl);
       // Same normalization the vendor applies inside its onreceive path,
       // done here so the resolved promise and the legacy callback report
       // the identical code (apps switch on ERROR_DEVICE_BUSY).
@@ -247,16 +327,12 @@ export class ePOSPrint extends ePOSBuilder implements ePOSEvents {
       return res;
     } catch (err) {
       const { status, responseText } = err instanceof PrintServiceError ? err : new PrintServiceError(0, String(err));
-      if (isMonitoring) {
+      if (isStatusQuery) {
         fireStatusEvent(this, this.ASB_NO_RESPONSE, 0);
         return { success: false, code: '', status: this.ASB_NO_RESPONSE, battery: 0, printjobid: printjobid ?? '' };
       }
       fireErrorEvent(this, status, responseText);
       throw new PrintServiceError(status, responseText);
-    } finally {
-      if (isMonitoring) {
-        updateStatus(this);
-      }
     }
   }
 }
@@ -347,20 +423,4 @@ function fireErrorEvent(epos: ePOSPrint, status: number, responseText: string): 
       responseText,
     });
   }
-}
-
-function updateStatus(epos: ePOSPrint): void {
-  let delay = epos.interval;
-  if (epos.enabled) {
-    if (isNaN(delay) || delay < 1000) {
-      delay = 3000;
-    }
-    epos.intervalid = setTimeout(() => {
-      epos.intervalid = null;
-      if (epos.enabled) {
-        void epos.send();
-      }
-    }, delay);
-  }
-  epos.intervalController = null;
 }
