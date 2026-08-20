@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EposHttpPrinter } from '../EposHttpPrinter';
+import { EposHttpPrinter, TRANSPORT_MARGIN_MS } from '../EposHttpPrinter';
 import { PrintServiceError, type FetchLike } from '../../builders/httpTransport';
 import { PRINT_SERVICE_ERRORS } from '../../constants/connection';
 
@@ -47,6 +47,25 @@ describe('EposHttpPrinter', () => {
       'https://printer.example.com/cgi-bin/epos/service.cgi?devid=local_printer&timeout=10000',
       expect.anything()
     );
+  });
+
+  it('puts the declared timeout in the URL, which is the budget the printer honors (regression: it was pinned at 10000 and `timeout` only moved the client-side one)', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml()));
+    const printer = new EposHttpPrinter('printer.example.com', { timeout: 90000 });
+
+    await printer.connect();
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://printer.example.com/cgi-bin/epos/service.cgi?devid=local_printer&timeout=90000',
+      expect.anything()
+    );
+  });
+
+  it('waits longer than the printer does, so its EX_TIMEOUT verdict arrives before we give up', async () => {
+    vi.mocked(fetch).mockResolvedValue(fakeResponse(200, statusXml()));
+    const printer = new EposHttpPrinter('printer.example.com', { timeout: 90000 });
+
+    expect(printer.timeout).toBe(90000 + TRANSPORT_MARGIN_MS);
   });
 
   it('uses http when port 8008 (IFPORT_EPOSDEVICE) is given', async () => {
@@ -97,12 +116,16 @@ describe('EposHttpPrinter', () => {
     });
 
     it('an address nothing answers at is TIMEOUT, once the request timeout is spent', async () => {
+      vi.useFakeTimers();
       const printer = new EposHttpPrinter('192.0.2.10', { fetch: neverAnswers, timeout: 50 });
 
-      const error = await printer.connect().catch((e) => e);
+      const pending = printer.connect().catch((e) => e);
+      await vi.advanceTimersByTimeAsync(50 + TRANSPORT_MARGIN_MS);
+      const error = await pending;
 
       expect(error.code).toBe(PRINT_SERVICE_ERRORS.TIMEOUT);
       expect(error.message).toMatch(/impresora/i);
+      vi.useRealTimers();
     });
 
     it('an address that is not a usable URL is ERROR_PARAMETER, and never leaves the process', async () => {
