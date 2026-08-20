@@ -25,19 +25,29 @@ describe.skipIf(!process.env.PRINTER_ADDRESS)('ePOSDevice Integration', () => {
     const result = await device.connect(testAddress, testPort, { eposprint: true });
     expect(result).toBe(RESULTS.OK);
     expect(device.isConnected()).toBe(true);
-  });
+  }, 15000);
 
   it('connect to printer web service - error', async () => {
     // Deliberately unreachable target, distinct from the success case above.
-    // A name that doesn't resolve reports UNREACHABLE, not ERROR_PARAMETER:
-    // the address is a perfectly good URL, the request just never got out.
-    const testAddress = 'unreachable.invalid';
-    const testPort = parseInt(process.env.PRINTER_PORT || '8043');
+    // Nothing listens on this port, so the connection is refused and the
+    // request never gets out: UNREACHABLE, not ERROR_PARAMETER — the address
+    // is a perfectly good URL.
+    //
+    // A name that doesn't resolve lands on the same result and used to be
+    // what this tested, with `unreachable.invalid`. It cannot be relied on:
+    // a resolver that answers NXDOMAIN rejects in ~0,1s, but one that
+    // hijacks unknown names hands back an address, `fetch` tries to connect
+    // and burns undici's 10s connect timeout instead. Measured on a network
+    // that does that: 10.635 ms, against this test's 5.000 ms cap — so it
+    // failed 4 of 4 runs there and passed everywhere else. A refused port is
+    // the same assertion without the dependency on whoever answers DNS.
+    const testAddress = '127.0.0.1';
+    const testPort = 9;
 
     const result = await device.connect(testAddress, testPort, { eposprint: true });
     expect(result).toBe(RESULTS.UNREACHABLE);
     expect(device.isConnected()).toBe(false);
-  });
+  }, 15000);
 
   // it('connect to printer socket - success', async () => {
     // const testAddress = process.env.PRINTER_ADDRESS || '192.168.0.3';
