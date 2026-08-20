@@ -8,7 +8,7 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
-## [0.6.0], Unreleased
+## [0.6.0], 2026-08-20
 
 A `timeout` the app asked for and the printer never saw. This goes out as a
 minor rather than a patch because it adds a public export
