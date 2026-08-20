@@ -44,5 +44,9 @@ describe.skipIf(!PRINTER_ADDRESS)('EPSON ePOS SDK Direct Tests', () => {
       epos.connect(PRINTER_ADDRESS, PRINTER_PORT, resolve);
     });
     expect(result).toBe(RESULT_OK);
-  });
+    // Same explicit budget the other hardware tests carry, and for the same
+    // reason: the printer serves one connection at a time, so this lands at
+    // 2,4s alone but 4,6-5,0s while the rest of the suite is talking to it —
+    // right on vitest's 5s default, which made it fail about half the runs.
+  }, 15000);
 });
