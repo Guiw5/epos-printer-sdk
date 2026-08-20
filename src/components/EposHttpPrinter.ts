@@ -9,11 +9,28 @@ export interface EposHttpPrinterOptions {
   port?: number;
   /** devid query param the printer expects. Default: 'local_printer'. */
   deviceId?: string;
-  /** Request timeout in ms. Default: 10000. */
+  /**
+   * How long the printer may spend on a job, in ms. Travels in the request
+   * URL, which is what the printer actually honors: past it, it aborts the
+   * job and answers HTTP 200 with `success="false"` and `code="EX_TIMEOUT"`.
+   * Default: 10000.
+   */
   timeout?: number;
   /** Swap the transport. Pass a simulator (see `epos-printer-sdk/simulator`) */
   fetch?: FetchLike;
 }
+
+/**
+ * How much longer than the printer's own budget the client waits.
+ *
+ * The two clocks start at different moments — the printer's when the request
+ * lands, ours when it leaves — so equal budgets mean ours always expires
+ * first and the caller gets an AbortError instead of the printer's verdict.
+ * The margin buys the verdict: `EX_TIMEOUT` says the job was aborted and no
+ * paper came out, which an abort on our side cannot distinguish from a job
+ * that printed and lost its answer on the way back.
+ */
+export const TRANSPORT_MARGIN_MS = 5000;
 
 /**
  * Minimal, socket-free client for the ePOS-Print HTTP web service, the
@@ -35,8 +52,9 @@ export class EposHttpPrinter extends CanvasPrint {
     const port = options.port ?? 443;
     const protocol = port === 80 || port === 8008 ? 'http' : 'https';
     const deviceId = options.deviceId ?? 'local_printer';
-    super(`${protocol}://${host}/cgi-bin/epos/service.cgi?devid=${deviceId}&timeout=10000`);
-    this.timeout = options.timeout ?? 10000;
+    const printerBudget = options.timeout ?? 10000;
+    super(`${protocol}://${host}/cgi-bin/epos/service.cgi?devid=${deviceId}&timeout=${printerBudget}`);
+    this.timeout = printerBudget + TRANSPORT_MARGIN_MS;
     this.fetchImpl = options.fetch;
   }
 

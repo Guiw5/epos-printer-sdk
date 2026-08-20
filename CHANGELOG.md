@@ -8,6 +8,36 @@ While the version is below `1.0.0`, breaking changes may land in minor
 releases, see [Known limitations](README.md#known-limitations) for what is
 still unvalidated.
 
+## [0.6.0], Unreleased
+
+A `timeout` the app asked for and the printer never saw. This goes out as a
+minor rather than a patch because it adds a public export
+(`TRANSPORT_MARGIN_MS`) and changes observable behavior: callers already
+passing `timeout` will find that it now actually reaches the device.
+
+### Added
+
+- **`TRANSPORT_MARGIN_MS`**, exported from `epos-printer-sdk/http`: how much
+  longer than the printer the client waits.
+
+### Fixed
+
+- **`timeout` now reaches the printer.** `EposHttpPrinter` pinned
+  `timeout=10000` in the request URL and spent the option on the client-side
+  abort only, so an app asking for 90 s still had its jobs aborted by the
+  printer at 10 s — and the printer reports that as HTTP 200 with
+  `success="false"` and `code="EX_TIMEOUT"`, which reads like a delivered
+  request and prints nothing. Measured against a TM-T88V behind a tunnel:
+  7 of 7 tickets over 100 KB died this way at 10.46–10.92 s, while 1 KB status
+  queries answered in 0.09 s. `ePOSDevice`/`Printer` never had the bug
+  (`Printer.ts` always interpolated `this.timeout`); it arrived with
+  `EposHttpPrinter`.
+- The client-side budget is now the declared one plus `TRANSPORT_MARGIN_MS`,
+  so the printer's `EX_TIMEOUT` verdict arrives before the transport gives up.
+  Equal budgets always expired on our side first — the two clocks start at
+  different moments — turning a knowable "aborted, no paper" into an
+  `AbortError` that can't be told apart from a lost answer.
+
 ## [0.5.0], 2026-08-16
 
 0.4.0 taught the probe behind `ePOSDevice.connect()` to say *why* a connection

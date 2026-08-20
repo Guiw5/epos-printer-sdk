@@ -3,7 +3,7 @@
 // `epos-printer-sdk/http` resolves to, import from here (not the root
 // package) when all you need is EposHttpPrinter, to keep bundlers from
 // pulling in the socket transport at all.
-export { EposHttpPrinter } from "./components/EposHttpPrinter";
+export { EposHttpPrinter, TRANSPORT_MARGIN_MS } from "./components/EposHttpPrinter";
 export type { EposHttpPrinterOptions } from "./components/EposHttpPrinter";
 export type { PrintServiceResponse } from "./builders/httpTransport";
 // What connect() and a failed print reject with, and the causes it sorts them
